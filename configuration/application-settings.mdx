@@ -1,0 +1,315 @@
+---
+title: "Application settings"
+description: "Configure download quality, subtitles, comments, SponsorBlock, cookies, and application-level options through the Settings UI or the REST API."
+---
+
+Tube Archivist stores its application configuration in Elasticsearch and exposes it through the **Settings** page in the UI and the `/api/appsettings/config/` endpoint. All settings support partial updates — you only need to send the keys you want to change.
+
+## Download settings
+
+Control how yt-dlp fetches and stores video files.
+
+<ParamField body="downloads.format" type="string | null" default="null">
+  A yt-dlp format selection string. When `null`, yt-dlp downloads the best available quality. Set an explicit format string to control codec, container, and quality.
+
+  ```text Example — browser-compatible H.264 + AAC
+  bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+  ```
+
+  Use this format string if you need playback in Safari, iOS, or Chromecasts that do not support VP9 or AV1.
+
+  <Tip>
+    Run `yt-dlp -F <video-url>` to list all available format codes for a specific video before crafting a format string.
+  </Tip>
+</ParamField>
+
+<ParamField body="downloads.format_sort" type="string | null" default="null">
+  A yt-dlp `--format-sort` string applied after format selection. Allows fine-grained control over codec and quality preference ordering. See the [yt-dlp format sort documentation](https://github.com/yt-dlp/yt-dlp#sorting-formats) for field names.
+</ParamField>
+
+<ParamField body="downloads.limit_speed" type="integer | null" default="null">
+  Maximum download speed in KB/s. Set to `null` for unlimited speed.
+</ParamField>
+
+<ParamField body="downloads.sleep_interval" type="integer" default="10">
+  Seconds to wait between individual video downloads. Increase this value to reduce the chance of rate-limiting by YouTube.
+</ParamField>
+
+<ParamField body="downloads.autodelete_days" type="integer | null" default="null">
+  Number of days after which watched videos are automatically deleted. Set to `null` to disable automatic deletion.
+</ParamField>
+
+<ParamField body="downloads.throttledratelimit" type="integer | null" default="null">
+  If yt-dlp detects throttling (download speed drops below this value in KB/s), it aborts and re-queues the video. Set to `null` to disable throttle detection.
+</ParamField>
+
+<ParamField body="downloads.extractor_lang" type="string | null" default="null">
+  Preferred language code for the yt-dlp extractor (for example `en` or `de`). Affects metadata language when YouTube provides translated titles or descriptions.
+</ParamField>
+
+<ParamField body="downloads.add_metadata" type="boolean" default="false">
+  Embed video metadata (title, description, uploader, etc.) into the downloaded media file using yt-dlp's `--add-metadata` flag.
+</ParamField>
+
+### Common format string examples
+
+<CodeGroup>
+
+```text Best available (default)
+(empty — leave format null)
+```
+
+```text Browser-compatible H.264
+bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+```
+
+```text 1080p max, H.264
+bestvideo[height<=1080][vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+```
+
+```text 720p max, any codec
+bestvideo[height<=720]+bestaudio/best[height<=720]
+```
+
+```text Audio only (m4a)
+bestaudio[ext=m4a]
+```
+
+</CodeGroup>
+
+<Note>
+  The format string is passed directly to yt-dlp. Invalid strings cause downloads to fail. Test new format strings against a single video before applying them globally.
+</Note>
+
+---
+
+## Subtitle settings
+
+<ParamField body="downloads.subtitle" type="string | null" default="null">
+  Comma-separated list of BCP 47 language codes to download subtitles for, for example `en,de,fr`. Set to `null` to disable subtitle downloads.
+</ParamField>
+
+<ParamField body="downloads.subtitle_source" type="'auto' | 'user' | null" default="null">
+  Which subtitle tracks to prefer:
+
+  - `user` — manually uploaded subtitles only
+  - `auto` — auto-generated captions (YouTube's automatic transcription)
+
+  Set to `null` when subtitles are disabled.
+</ParamField>
+
+<ParamField body="downloads.subtitle_index" type="boolean" default="false">
+  When enabled, subtitle content is indexed in Elasticsearch and becomes searchable alongside video titles and descriptions.
+</ParamField>
+
+---
+
+## Comment settings
+
+<ParamField body="downloads.comment_max" type="string | null" default="null">
+  Maximum number of comments to download per video, for example `"100"` or `"1000"`. Set to `null` to disable comment downloading. Comments are stored in the Elasticsearch index and displayed on each video's detail page.
+</ParamField>
+
+<ParamField body="downloads.comment_sort" type="'top' | 'new'" default="top">
+  Sort order for downloaded comments:
+
+  - `top` — most-liked comments first
+  - `new` — most recent comments first
+</ParamField>
+
+---
+
+## SponsorBlock integration
+
+[SponsorBlock](https://sponsor.ajay.app/) is a community-driven database of time-coded segments in YouTube videos (sponsor segments, intros, outros, and more). Tube Archivist can fetch and store these segments so the player can skip them automatically.
+
+<ParamField body="downloads.integrate_sponsorblock" type="boolean" default="false">
+  Enable SponsorBlock integration. When enabled, Tube Archivist fetches segment data from the SponsorBlock API at download time and stores it with each video.
+</ParamField>
+
+<Note>
+  SponsorBlock segment categories (sponsor, intro, outro, selfpromo, etc.) are controlled at the player level. Enabling this setting makes the data available; the player UI controls which categories are skipped.
+</Note>
+
+---
+
+## Return YouTube Dislike integration
+
+<ParamField body="downloads.integrate_ryd" type="boolean" default="false">
+  Fetch dislike counts from the [Return YouTube Dislike](https://www.returnyoutubedislike.com/) API and display them on video pages alongside the like count.
+</ParamField>
+
+---
+
+## Cookie settings
+
+Some videos are age-restricted or otherwise require a YouTube session. You can pass browser cookies to yt-dlp so it downloads them as if logged in.
+
+<ParamField body="downloads.cookie_import" type="boolean" default="false">
+  Enable cookie-based authentication for yt-dlp. Must be set to `true` before uploading a cookie file.
+</ParamField>
+
+<Warning>
+  Cookies grant access to your YouTube account. Treat cookie files like passwords — do not share them or commit them to version control.
+</Warning>
+
+### Importing a cookie file
+
+<Steps>
+  <Step title="Export cookies from your browser">
+    Use a browser extension such as **Get cookies.txt LOCALLY** (Chrome/Firefox) to export your YouTube cookies in Netscape format.
+  </Step>
+  <Step title="Enable cookie import">
+    In **Settings → Downloads**, toggle **Cookie import** on. You can also set `downloads.cookie_import: true` via the API.
+  </Step>
+  <Step title="Upload the cookie file">
+    In **Settings → Cookie**, paste or upload the contents of the exported cookie file and save. Tube Archivist validates the cookie immediately.
+  </Step>
+  <Step title="Verify">
+    The cookie status indicator shows whether the current cookie is valid. Use the **Validate** button to re-check at any time.
+  </Step>
+</Steps>
+
+<ParamField body="downloads.pot_provider_url" type="string | null" default="null">
+  URL of a Proof-of-Origin Token (POT) provider. Advanced use only — required for some yt-dlp authentication flows.
+</ParamField>
+
+---
+
+## Subscription settings
+
+<ParamField body="subscriptions.channel_size" type="integer" default="50">
+  Maximum number of regular videos to index per channel during a subscription rescan.
+</ParamField>
+
+<ParamField body="subscriptions.live_channel_size" type="integer" default="50">
+  Maximum number of live stream videos to index per channel.
+</ParamField>
+
+<ParamField body="subscriptions.shorts_channel_size" type="integer" default="50">
+  Maximum number of YouTube Shorts to index per channel.
+</ParamField>
+
+<ParamField body="subscriptions.playlist_size" type="integer" default="50">
+  Maximum number of videos to index per subscribed playlist.
+</ParamField>
+
+<ParamField body="subscriptions.auto_start" type="boolean" default="false">
+  Automatically start downloading after a subscription rescan finds new videos.
+</ParamField>
+
+<ParamField body="subscriptions.extract_flat" type="boolean" default="false">
+  Use yt-dlp's flat extraction mode during rescans. Faster but provides less metadata for queued items before download.
+</ParamField>
+
+---
+
+## Application settings
+
+<ParamField body="application.enable_snapshot" type="boolean" default="true">
+  Enable Elasticsearch snapshot support for point-in-time index backups. Requires a writable snapshot repository configured in Elasticsearch.
+</ParamField>
+
+<ParamField body="application.enable_cast" type="boolean" default="false">
+  Enable Google Cast (Chromecast) support in the video player. Requires the `DISABLE_STATIC_AUTH` environment variable to also be set, since Cast devices cannot send authentication headers.
+</ParamField>
+
+---
+
+## Filesystem rescan
+
+The filesystem rescan task checks your media directory for mismatches between files on disk and entries in the index, then reconciles the difference.
+
+Navigate to **Settings → Actions → Rescan filesystem** to trigger this manually. It runs automatically after every scheduled download.
+
+The task accepts two options:
+
+| Option | Description |
+|--------|-------------|
+| `ignore_error` | Skip files that produce errors instead of aborting the scan |
+| `prefer_local` | When a mismatch is found, prefer the local file over the indexed entry |
+
+You can also trigger the rescan via the API:
+
+```bash
+curl -X POST http://localhost:8000/api/appsettings/rescan-filesystem/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"ignore_error": false, "prefer_local": false}'
+```
+
+---
+
+## Index management
+
+### Backup and restore
+
+Tube Archivist can export a ZIP backup of all Elasticsearch indexes and restore from a previous backup. Backups include video metadata, channel info, playlists, comments, and configuration — **not** the media files themselves.
+
+Navigate to **Settings → Actions** to create a backup or restore from an existing one.
+
+```bash Create a backup via API
+curl -X POST http://localhost:8000/api/appsettings/backup/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```bash List available backups
+curl http://localhost:8000/api/appsettings/backup/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```bash Restore a backup
+curl -X POST http://localhost:8000/api/appsettings/backup/<filename>/ \
+  -H "Authorization: Token <your-token>"
+```
+
+<Warning>
+  Restoring a backup resets the entire index. All data since the backup was taken will be lost. Make a fresh backup before restoring.
+</Warning>
+
+### Elasticsearch snapshots
+
+Snapshots are low-level Elasticsearch point-in-time backups stored on the Elasticsearch node itself (not as downloadable ZIP files). Enable them with `application.enable_snapshot: true`.
+
+```bash Take a snapshot now
+curl -X POST http://localhost:8000/api/appsettings/snapshot/ \
+  -H "Authorization: Token <your-token>"
+```
+
+---
+
+## Thumbnail settings
+
+The thumbnail check task validates that all indexed videos have a valid local thumbnail file. Missing or corrupted thumbnails are re-downloaded from YouTube.
+
+Trigger a thumbnail check from **Settings → Actions → Check thumbnails**, or via the API:
+
+```bash
+curl -X POST http://localhost:8000/api/task/by-name/thumbnail_check/ \
+  -H "Authorization: Token <your-token>"
+```
+
+---
+
+## Updating settings via the API
+
+All settings can be read and updated through the `/api/appsettings/config/` endpoint. Partial updates are supported — omit any keys you do not want to change.
+
+```bash Read current config
+curl http://localhost:8000/api/appsettings/config/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```bash Update download format and enable subtitles
+curl -X POST http://localhost:8000/api/appsettings/config/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "downloads": {
+      "format": "bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4",
+      "subtitle": "en",
+      "subtitle_source": "auto",
+      "subtitle_index": true
+    }
+  }'
+```

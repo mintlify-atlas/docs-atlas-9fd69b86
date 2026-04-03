@@ -1,0 +1,221 @@
+---
+title: "Docker Compose"
+description: "Deploy Tube Archivist using Docker Compose. This is the recommended installation method."
+---
+
+Tube Archivist runs as a three-container stack: the main application, Elasticsearch for indexing, and Redis for task queuing. Docker Compose manages all three services together.
+
+## Prerequisites
+
+- Docker and Docker Compose installed and running
+- At least 2 GB of available RAM (4 GB recommended for larger archives)
+- Dual-core CPU with 4 threads minimum
+
+<Note>
+  Elasticsearch requires the host kernel setting `vm.max_map_count` to be at least `262144`. See [fixing vm.max_map_count](#vm-max-map-count) below before starting the stack.
+</Note>
+
+## docker-compose.yml
+
+Copy this file to your server and fill in the required environment variables:
+
+```yaml docker-compose.yml
+services:
+  tubearchivist:
+    container_name: tubearchivist
+    restart: unless-stopped
+    image: bbilly1/tubearchivist
+    ports:
+      - 8000:8000
+    volumes:
+      - media:/youtube
+      - cache:/cache
+    environment:
+      - ES_URL=http://archivist-es:9200     # needs protocol e.g. http and port
+      - REDIS_CON=redis://archivist-redis:6379
+      - HOST_UID=1000
+      - HOST_GID=1000
+      - TA_HOST=http://tubearchivist.local:8000  # set your host name with protocol and port
+      - TA_USERNAME=tubearchivist           # your initial TA credentials
+      - TA_PASSWORD=verysecret              # your initial TA credentials
+      - ELASTIC_PASSWORD=verysecret         # set password for Elasticsearch
+      - TZ=America/New_York                 # set your time zone
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - archivist-es
+      - archivist-redis
+  archivist-redis:
+    image: redis
+    container_name: archivist-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis:/data
+    depends_on:
+      - archivist-es
+  archivist-es:
+    image: bbilly1/tubearchivist-es         # only for amd64, or use official es 8.19.0
+    container_name: archivist-es
+    restart: unless-stopped
+    environment:
+      - "ELASTIC_PASSWORD=verysecret"       # matching Elasticsearch password
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "xpack.security.enabled=true"
+      - "discovery.type=single-node"
+      - "path.repo=/usr/share/elasticsearch/data/snapshot"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es:/usr/share/elasticsearch/data    # check for permission error when using bind mount, see readme
+    expose:
+      - "9200"
+
+volumes:
+  media:
+  cache:
+  redis:
+  es:
+```
+
+<Warning>
+  Change `TA_PASSWORD` and `ELASTIC_PASSWORD` from the example values before deploying. Use the same password for both `ELASTIC_PASSWORD` entries — one in the `tubearchivist` service and one in the `archivist-es` service.
+</Warning>
+
+## Services
+
+### tubearchivist
+
+The main application container. It serves the web UI on port `8000` and runs the download worker, scheduler, and API.
+
+- **Image**: `bbilly1/tubearchivist`
+- **Port**: `8000:8000` — maps host port 8000 to the container
+- **Volumes**: `media` mounted at `/youtube` (video files), `cache` mounted at `/cache` (thumbnails, database, temporary files)
+- **Health check**: Polls `http://localhost:8000/api/health/` every 2 minutes
+
+### archivist-redis
+
+Redis handles the task queue between the web process and the download worker. It is not exposed to the host network.
+
+- **Image**: `redis`
+- **Volume**: `redis` mounted at `/data` for persistence
+
+### archivist-es
+
+Elasticsearch stores and indexes all video metadata, enabling full-text search.
+
+- **Image**: `bbilly1/tubearchivist-es` (recommended, automatically pinned to a tested version) or the official `elasticsearch:8.19.0` image for non-amd64 platforms
+- **Volume**: `es` mounted at `/usr/share/elasticsearch/data`
+
+<Note>
+  The `bbilly1/tubearchivist-es` image is only for amd64. On ARM or other platforms, use the official Elasticsearch image at the version listed in the compose file.
+</Note>
+
+## Starting the stack
+
+```bash
+docker compose up -d
+```
+
+Docker Compose pulls all images, creates the named volumes, and starts the containers in the correct order (`archivist-es` → `archivist-redis` → `tubearchivist`). The web interface is available at `http://your-host:8000` once the health check passes.
+
+## Updating
+
+Always use the `latest` tag (the default) or a named semantic version tag. Never use the `unstable` tag in production.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+<Warning>
+  Always read the release notes before updating. Breaking changes — such as new required environment variables — are documented there. Updates are tested between one or two releases; applying updates at least once a month is recommended.
+</Warning>
+
+After updating, check the version number in the footer of the web interface to confirm the expected version is running.
+
+## Port collision resolution
+
+If port `8000` is already in use on your host, change the host-side port in the `ports` mapping. For example, to serve on port `9000`:
+
+```yaml
+ports:
+  - 9000:8000
+```
+
+Update `TA_HOST` to match:
+
+```yaml
+- TA_HOST=http://tubearchivist.local:9000
+```
+
+## Common errors
+
+### vm.max_map_count
+
+Elasticsearch requires the host kernel setting `vm.max_map_count` to be at least `262144`. You will see errors like `failed to obtain node locks` if this is not set.
+
+To set the value temporarily:
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+```
+
+To set it permanently:
+
+<AccordionGroup>
+  <Accordion title="Ubuntu / Debian">
+    Add the following line to `/etc/sysctl.conf`:
+
+    ```
+    vm.max_map_count = 262144
+    ```
+  </Accordion>
+  <Accordion title="Arch Linux">
+    Create `/etc/sysctl.d/max_map_count.conf` with:
+
+    ```
+    vm.max_map_count = 262144
+    ```
+  </Accordion>
+  <Accordion title="Other platforms">
+    Consult your OS documentation for how to set kernel parameters persistently.
+  </Accordion>
+</AccordionGroup>
+
+### Elasticsearch permissions
+
+If Elasticsearch fails to start with a message like `Unable to access 'path.repo'` or `failed to obtain node locks, tried [/usr/share/elasticsearch/data] ... maybe these locations are not writable`, the container cannot write to the mounted volume.
+
+Stop the stack and fix ownership on the host:
+
+```bash
+chown 1000:0 -R /path/to/mount/point
+```
+
+This matches the UID and GID of the Elasticsearch process inside the container.
+
+### error setting rlimit
+
+If you see `failed to create shim: OCI runtime create failed` and `error setting rlimits`, Docker cannot apply the `ulimits` configuration. This commonly occurs in nested virtualization environments such as LXC containers running inside Proxmox.
+
+Remove the `ulimits` block from the `archivist-es` service in your compose file and restart:
+
+```yaml
+# Remove or comment out:
+# ulimits:
+#   memlock:
+#     soft: -1
+#     hard: -1
+```
+
+### Disk usage
+
+Elasticsearch switches its index to read-only mode when disk usage on the container exceeds 95%. You will see `disk usage exceeded flood-stage watermark` errors. Usage must drop below 90% for writes to resume. Ensure sufficient disk space before starting large downloads.

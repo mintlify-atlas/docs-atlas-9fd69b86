@@ -1,0 +1,204 @@
+---
+title: 'Unraid'
+description: 'Install Tube Archivist on Unraid using Community Applications and Docker.'
+---
+
+Tube Archivist runs on Unraid through the Community Applications plugin. The stack requires three containers — the main app, Elasticsearch, and Redis — all communicating over a shared Docker network.
+
+## Prerequisites
+
+- Unraid 6.9 or later with Docker enabled
+- **Community Applications** plugin installed
+- At least 2 GB of free RAM for a small setup; 4 GB recommended for larger libraries
+- Sufficient storage for your media archive
+
+<Warning>
+  Elasticsearch requires the kernel parameter `vm.max_map_count` to be at least
+  262144. See the [vm.max_map_count](#vmmax_map_count) section below before
+  starting the containers.
+</Warning>
+
+## Containers
+
+The Tube Archivist stack consists of three containers:
+
+| Container name    | Image                        | Role               |
+| ----------------- | ---------------------------- | ------------------ |
+| `tubearchivist`   | `bbilly1/tubearchivist`      | Main application   |
+| `archivist-es`    | `bbilly1/tubearchivist-es`   | Elasticsearch      |
+| `archivist-redis` | `redis`                      | Redis task queue   |
+
+<Note>
+  `bbilly1/tubearchivist-es` is a pre-configured Elasticsearch image for amd64
+  (x86_64). If you need to run on a different architecture, use the official
+  `elasticsearch:8.19.0` image instead.
+</Note>
+
+## Installation
+
+<Steps>
+  <Step title="Create a custom Docker network">
+    All three containers must be on the same network so they can reach each other by container name. In Unraid, go to **Settings → Docker** and create a new custom bridge network (for example, `tubearchivist`).
+
+    Alternatively, create it from the Unraid terminal:
+
+    ```bash
+    docker network create tubearchivist
+    ```
+  </Step>
+
+  <Step title="Add archivist-es (Elasticsearch)">
+    In Community Applications, search for **tubearchivist-es** or add the container manually with the following settings:
+
+    | Field                | Value                                      |
+    | -------------------- | ------------------------------------------ |
+    | **Repository**       | `bbilly1/tubearchivist-es`                 |
+    | **Network**          | `tubearchivist` (custom bridge)            |
+    | **Container name**   | `archivist-es`                             |
+
+    **Environment variables:**
+
+    | Variable             | Example value     | Description                          |
+    | -------------------- | ----------------- | ------------------------------------ |
+    | `ELASTIC_PASSWORD`   | `verysecret`      | Password for the Elasticsearch user  |
+    | `ES_JAVA_OPTS`       | `-Xms1g -Xmx1g`  | JVM heap size (tune to your RAM)     |
+    | `xpack.security.enabled` | `true`       | Enable X-Pack security               |
+    | `discovery.type`     | `single-node`     | Single-node cluster mode             |
+    | `path.repo`          | `/usr/share/elasticsearch/data/snapshot` | Snapshot directory |
+
+    **Volume mapping:**
+
+    | Container path                       | Host path              |
+    | ------------------------------------ | ---------------------- |
+    | `/usr/share/elasticsearch/data`      | `/mnt/user/appdata/tubearchivist/es` |
+
+    <Warning>
+      If Elasticsearch fails to start with a permission error on the data
+      directory, run the following on the Unraid host:
+
+      ```bash
+      chown 1000:0 -R /mnt/user/appdata/tubearchivist/es
+      ```
+    </Warning>
+  </Step>
+
+  <Step title="Add archivist-redis (Redis)">
+    Add a Redis container with these settings:
+
+    | Field              | Value                           |
+    | ------------------ | ------------------------------- |
+    | **Repository**     | `redis`                         |
+    | **Network**        | `tubearchivist` (custom bridge) |
+    | **Container name** | `archivist-redis`               |
+
+    **Volume mapping:**
+
+    | Container path | Host path                             |
+    | -------------- | ------------------------------------- |
+    | `/data`        | `/mnt/user/appdata/tubearchivist/redis` |
+
+    Redis does not need any exposed ports — the main container reaches it over the internal network.
+  </Step>
+
+  <Step title="Add tubearchivist (main app)">
+    Add the main Tube Archivist container:
+
+    | Field              | Value                           |
+    | ------------------ | ------------------------------- |
+    | **Repository**     | `bbilly1/tubearchivist`         |
+    | **Network**        | `tubearchivist` (custom bridge) |
+    | **Container name** | `tubearchivist`                 |
+    | **Port mapping**   | Host `8000` → Container `8000`  |
+
+    **Environment variables:**
+
+    | Variable           | Example value                          | Description                                   |
+    | ------------------ | -------------------------------------- | --------------------------------------------- |
+    | `ES_URL`           | `http://archivist-es:9200`             | Elasticsearch URL (use container name as host) |
+    | `REDIS_CON`        | `redis://archivist-redis:6379`         | Redis connection string                        |
+    | `HOST_UID`         | `1000`                                 | UID that owns media files on the host          |
+    | `HOST_GID`         | `1000`                                 | GID that owns media files on the host          |
+    | `TA_HOST`          | `http://192.168.1.100:8000`            | Full URL used to access Tube Archivist         |
+    | `TA_USERNAME`      | `tubearchivist`                        | Initial admin username                         |
+    | `TA_PASSWORD`      | `verysecret`                           | Initial admin password                         |
+    | `ELASTIC_PASSWORD` | `verysecret`                           | Must match the value set on `archivist-es`     |
+    | `TZ`               | `America/New_York`                     | Your timezone (for the scheduler)              |
+
+    <Tip>
+      Set `HOST_UID` and `HOST_GID` to match the UID/GID of your Unraid media
+      user so that downloaded files are owned by the correct account. You can
+      find your UID/GID by running `id <username>` in the Unraid terminal.
+    </Tip>
+
+    **Volume mappings:**
+
+    | Container path | Host path                                  |
+    | -------------- | ------------------------------------------ |
+    | `/youtube`     | `/mnt/user/data/media/tubearchivist`       |
+    | `/cache`       | `/mnt/user/appdata/tubearchivist/cache`    |
+  </Step>
+
+  <Step title="Start the containers">
+    Start the containers in this order:
+
+    1. `archivist-es`
+    2. `archivist-redis`
+    3. `tubearchivist`
+
+    Wait for Elasticsearch to finish initializing before starting the main app. You can monitor startup progress in each container's log view.
+  </Step>
+
+  <Step title="Access the web interface">
+    Open `http://<your-unraid-ip>:8000` in a browser. Log in with the `TA_USERNAME` and `TA_PASSWORD` values you set. On first launch, Tube Archivist will create the required Elasticsearch indices — this may take a minute.
+  </Step>
+</Steps>
+
+## vm.max_map_count
+
+Elasticsearch requires the host kernel parameter `vm.max_map_count` to be at least `262144`. By default, Unraid does not persist this setting across reboots.
+
+**Set temporarily (applies until next reboot):**
+
+```bash
+sysctl -w vm.max_map_count=262144
+```
+
+**Set persistently via the Dynamix System Autostart plugin or a Go script:**
+
+Add the following line to your Unraid boot script at `/boot/config/go`:
+
+```bash
+sysctl -w vm.max_map_count=262144
+```
+
+**Set persistently via the Unraid Sysctl plugin:**
+
+If you have the **Sysctl** plugin installed, add the following entry through its settings UI:
+
+```
+vm.max_map_count = 262144
+```
+
+<Warning>
+  If `vm.max_map_count` is too low, Elasticsearch will fail to start. Check the
+  `archivist-es` container log for the error message
+  `max virtual memory areas vm.max_map_count [65530] is too low`.
+</Warning>
+
+## Networking notes
+
+Because all containers share a custom bridge network, they communicate using their **container names** as hostnames. This is why `ES_URL` is set to `http://archivist-es:9200` and `REDIS_CON` to `redis://archivist-redis:6379` — Docker resolves those names to the correct container IPs automatically.
+
+Do not expose Elasticsearch (port 9200) or Redis (port 6379) to the host or the network unless you have a specific reason to do so.
+
+## Updating
+
+Pull the latest image for each container individually through the Unraid Docker tab, or run:
+
+```bash
+docker pull bbilly1/tubearchivist
+docker pull bbilly1/tubearchivist-es
+docker pull redis
+```
+
+Then restart each container. Always check the [release notes](https://github.com/tubearchivist/tubearchivist/releases) before updating — some releases include breaking changes that require additional environment variables or manual migration steps.

@@ -1,0 +1,292 @@
+---
+title: 'Synology NAS'
+description: 'Install Tube Archivist on a Synology NAS using Container Manager or docker-compose over SSH.'
+---
+
+Tube Archivist can run on a Synology NAS using the Container Manager application (formerly Docker) that ships with DSM. You can set it up either through the Container Manager GUI or by deploying a `docker-compose.yml` file over SSH.
+
+## Prerequisites
+
+- Synology DSM 7.2 or later
+- **Container Manager** installed from the Package Center
+- An x86_64 (amd64) Synology model — see the [architecture note](#elasticsearch-image-and-architecture) below for ARM devices
+- At least 2 GB of free RAM; 4 GB recommended for larger libraries
+- SSH access enabled if using the compose approach
+
+<Warning>
+  Elasticsearch requires the kernel parameter `vm.max_map_count` to be at least
+  262144. Synology DSM does not set this by default. See the
+  [vm.max_map_count](#vmmax_map_count) section before starting the containers.
+</Warning>
+
+## Two approaches
+
+<Tabs>
+  <Tab title="docker-compose via SSH">
+    This is the recommended approach — it gives you a single file to version-control and is easier to update.
+
+    <Steps>
+      <Step title="Enable SSH on your Synology">
+        Go to **Control Panel → Terminal & SNMP** and enable the SSH service.
+      </Step>
+
+      <Step title="Connect over SSH">
+        ```bash
+        ssh admin@<synology-ip>
+        ```
+
+        Switch to root to run Docker commands without `sudo` on every line:
+
+        ```bash
+        sudo -i
+        ```
+      </Step>
+
+      <Step title="Create a project directory">
+        ```bash
+        mkdir -p /volume1/docker/tubearchivist
+        cd /volume1/docker/tubearchivist
+        ```
+      </Step>
+
+      <Step title="Create the docker-compose.yml">
+        Create the file at `/volume1/docker/tubearchivist/docker-compose.yml`:
+
+        ```yaml
+        services:
+          tubearchivist:
+            container_name: tubearchivist
+            restart: unless-stopped
+            image: bbilly1/tubearchivist
+            ports:
+              - 8000:8000
+            volumes:
+              - /volume1/youtube:/youtube
+              - /volume1/docker/tubearchivist/cache:/cache
+            environment:
+              - ES_URL=http://archivist-es:9200
+              - REDIS_CON=redis://archivist-redis:6379
+              - HOST_UID=1026
+              - HOST_GID=100
+              - TA_HOST=http://192.168.1.100:8000
+              - TA_USERNAME=tubearchivist
+              - TA_PASSWORD=verysecret
+              - ELASTIC_PASSWORD=verysecret
+              - TZ=America/New_York
+            depends_on:
+              - archivist-es
+              - archivist-redis
+
+          archivist-redis:
+            image: redis
+            container_name: archivist-redis
+            restart: unless-stopped
+            expose:
+              - "6379"
+            volumes:
+              - /volume1/docker/tubearchivist/redis:/data
+            depends_on:
+              - archivist-es
+
+          archivist-es:
+            image: bbilly1/tubearchivist-es
+            container_name: archivist-es
+            restart: unless-stopped
+            environment:
+              - "ELASTIC_PASSWORD=verysecret"
+              - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+              - "xpack.security.enabled=true"
+              - "discovery.type=single-node"
+              - "path.repo=/usr/share/elasticsearch/data/snapshot"
+            ulimits:
+              memlock:
+                soft: -1
+                hard: -1
+            volumes:
+              - /volume1/docker/tubearchivist/es:/usr/share/elasticsearch/data
+            expose:
+              - "9200"
+        ```
+
+        Edit the values in the `environment` sections to match your setup before saving.
+      </Step>
+
+      <Step title="Set vm.max_map_count">
+        Before starting the stack, set the required kernel parameter. See the [vm.max_map_count](#vmmax_map_count) section for the persistent method.
+
+        ```bash
+        sysctl -w vm.max_map_count=262144
+        ```
+      </Step>
+
+      <Step title="Create shared folders for media and data">
+        Create the Synology shared folder for your YouTube media through **File Station** or **Control Panel → Shared Folder** (for example, `youtube` on `volume1`). The cache and database directories are created automatically when the containers start.
+      </Step>
+
+      <Step title="Start the stack">
+        ```bash
+        docker compose up -d
+        ```
+
+        Elasticsearch initializes first; the main container waits for it before becoming ready.
+      </Step>
+
+      <Step title="Access the web interface">
+        Open `http://<synology-ip>:8000` in a browser and log in with the credentials you set in `TA_USERNAME` and `TA_PASSWORD`.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Container Manager GUI">
+    <Steps>
+      <Step title="Create a shared folder for media">
+        In **File Station** or **Control Panel → Shared Folder**, create a shared folder (for example `youtube`) on your data volume to store downloaded media.
+      </Step>
+
+      <Step title="Create a custom bridge network">
+        In **Container Manager → Network**, click **Create** and add a new bridge network named `tubearchivist`. All three containers must be on this network to communicate by name.
+      </Step>
+
+      <Step title="Deploy archivist-es (Elasticsearch)">
+        In **Container Manager → Container**, click **Create**:
+
+        - **Image:** `bbilly1/tubearchivist-es`
+        - **Container name:** `archivist-es`
+        - **Network:** `tubearchivist`
+
+        Add the following environment variables:
+
+        | Variable                  | Value                                             |
+        | ------------------------- | ------------------------------------------------- |
+        | `ELASTIC_PASSWORD`        | `verysecret`                                      |
+        | `ES_JAVA_OPTS`            | `-Xms1g -Xmx1g`                                  |
+        | `xpack.security.enabled`  | `true`                                            |
+        | `discovery.type`          | `single-node`                                     |
+        | `path.repo`               | `/usr/share/elasticsearch/data/snapshot`          |
+
+        Add a volume mount:
+
+        | Host path                                     | Container path                        |
+        | --------------------------------------------- | ------------------------------------- |
+        | `/volume1/docker/tubearchivist/es`            | `/usr/share/elasticsearch/data`       |
+      </Step>
+
+      <Step title="Deploy archivist-redis (Redis)">
+        Create another container:
+
+        - **Image:** `redis`
+        - **Container name:** `archivist-redis`
+        - **Network:** `tubearchivist`
+
+        Add a volume mount:
+
+        | Host path                                    | Container path |
+        | -------------------------------------------- | -------------- |
+        | `/volume1/docker/tubearchivist/redis`        | `/data`        |
+      </Step>
+
+      <Step title="Deploy tubearchivist (main app)">
+        Create the main container:
+
+        - **Image:** `bbilly1/tubearchivist`
+        - **Container name:** `tubearchivist`
+        - **Network:** `tubearchivist`
+        - **Port:** host `8000` → container `8000`
+
+        Add environment variables:
+
+        | Variable           | Example value                  |
+        | ------------------ | ------------------------------ |
+        | `ES_URL`           | `http://archivist-es:9200`     |
+        | `REDIS_CON`        | `redis://archivist-redis:6379` |
+        | `HOST_UID`         | `1026`                         |
+        | `HOST_GID`         | `100`                          |
+        | `TA_HOST`          | `http://192.168.1.100:8000`    |
+        | `TA_USERNAME`      | `tubearchivist`                |
+        | `TA_PASSWORD`      | `verysecret`                   |
+        | `ELASTIC_PASSWORD` | `verysecret`                   |
+        | `TZ`               | `America/New_York`             |
+
+        Add volume mounts:
+
+        | Host path                     | Container path |
+        | ----------------------------- | -------------- |
+        | `/volume1/youtube`            | `/youtube`     |
+        | `/volume1/docker/tubearchivist/cache` | `/cache` |
+      </Step>
+
+      <Step title="Start the containers">
+        Start them in order: `archivist-es` first, then `archivist-redis`, then `tubearchivist`. Give Elasticsearch 30–60 seconds to fully initialize before starting the main app.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## vm.max_map_count
+
+Elasticsearch requires `vm.max_map_count ≥ 262144`. On Synology this must be set manually.
+
+**Set temporarily (resets on reboot):**
+
+SSH in as root and run:
+
+```bash
+sysctl -w vm.max_map_count=262144
+```
+
+**Set persistently via /etc/sysctl.conf:**
+
+```bash
+echo "vm.max_map_count = 262144" >> /etc/sysctl.conf
+sysctl -p
+```
+
+<Note>
+  DSM updates can overwrite `/etc/sysctl.conf`. Verify the value after a DSM
+  upgrade by running `sysctl vm.max_map_count`.
+</Note>
+
+**Set via a triggered task (recommended for persistence across DSM upgrades):**
+
+In **Control Panel → Task Scheduler**, create a triggered task that runs at boot as root:
+
+```bash
+sysctl -w vm.max_map_count=262144
+```
+
+## Host UID and GID
+
+Set `HOST_UID` and `HOST_GID` to the UID and GID of the Synology user that should own your downloaded media files. This prevents permission mismatches between the container and the NAS filesystem.
+
+To find the UID and GID of a Synology user, SSH in and run:
+
+```bash
+id <username>
+```
+
+Common values on Synology: UID `1026`, GID `100` (the default `users` group).
+
+## Elasticsearch image and architecture
+
+`bbilly1/tubearchivist-es` is built for **amd64 (x86_64)** Synology devices. If your NAS uses an ARM processor, use the official Elasticsearch image instead:
+
+```yaml
+image: elasticsearch:8.19.0
+```
+
+Check your NAS CPU architecture in **Control Panel → Info Center → General**.
+
+## Firewall
+
+If you have the Synology firewall enabled (**Control Panel → Security → Firewall**), add a rule to allow inbound TCP traffic on port `8000` from your local network.
+
+## Updating
+
+Pull updated images and recreate the containers:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Always read the [release notes](https://github.com/tubearchivist/tubearchivist/releases) before updating — some releases include breaking changes or require new environment variables.

@@ -1,0 +1,276 @@
+---
+title: "Scheduling"
+description: "Automate subscription rescans, downloads, reindexing, and backups with Celery Beat cron schedules. Configure notifications with Apprise."
+---
+
+Tube Archivist uses [Celery Beat](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html) to run background tasks on a schedule. Each schedulable task has an independent cron expression and can also be triggered manually at any time from the Settings page or via the API.
+
+## How scheduling works
+
+Schedules are stored in the database as `CrontabSchedule` entries and picked up by the Celery Beat scheduler process. The scheduler respects the timezone set by your `TZ` environment variable.
+
+Each schedule uses a **three-field cron format**: `<minute> <hour> <day_of_week>`.
+
+| Field | Accepted values | Example |
+|-------|----------------|---------|
+| `minute` | `0`–`59` (integer only) | `30` |
+| `hour` | `0`–`23`, `*` | `8` |
+| `day_of_week` | `0`–`6` (0=Sunday), `*` | `1` |
+
+<Note>
+  Tube Archivist uses a three-field format, not the standard five-field cron format. You do not specify day-of-month or month.
+</Note>
+
+### Examples
+
+| Schedule string | Meaning |
+|----------------|---------|
+| `0 8 *` | Every day at 08:00 |
+| `30 16 *` | Every day at 16:30 |
+| `0 18 0` | Every Sunday at 18:00 |
+| `0 12 1` | Every Monday at 12:00 |
+
+---
+
+## Available scheduled tasks
+
+The following tasks can be placed on a schedule. Tasks marked **API startable** can also be triggered immediately from the Settings UI or via `POST /api/task/by-name/<task-name>/`.
+
+| Task name | Title | Default schedule | API startable |
+|-----------|-------|-----------------|---------------|
+| `update_subscribed` | Rescan your subscriptions | `0 8 *` | Yes |
+| `download_pending` | Download pending videos | `0 16 *` | Yes |
+| `check_reindex` | Reindex documents | `0 12 *` | No |
+| `thumbnail_check` | Check thumbnails | `0 17 *` | Yes |
+| `run_backup` | Index backup | `0 18 0` | Yes |
+| `version_check` | Check for new version | `0 11 *` | No |
+
+### Task descriptions
+
+<AccordionGroup>
+  <Accordion title="update_subscribed — Rescan subscriptions">
+    Scans all subscribed channels and playlists for new videos and adds missing ones to the download queue. If **Auto-start** is enabled in subscription settings, it immediately triggers `download_pending` after adding new items.
+  </Accordion>
+
+  <Accordion title="download_pending — Download pending videos">
+    Works through the download queue and fetches all pending videos using yt-dlp. Retries up to three times if any videos fail. Accepts an `auto_only` flag that restricts downloading to items added by the auto-rescan.
+  </Accordion>
+
+  <Accordion title="check_reindex — Reindex documents">
+    Refreshes recently updated and outdated documents in the Elasticsearch index. Keeps channel metadata, video info, and playlist entries in sync with YouTube. Supports a `days` config key to control how old a document must be before it is considered outdated.
+
+    ```json Configure reindex age threshold
+    {
+      "config": { "days": 90 }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="thumbnail_check — Validate thumbnails">
+    Checks that every indexed video has a valid local thumbnail. Re-downloads any missing or corrupted thumbnails from YouTube. Also runs automatically at the end of every `rescan_filesystem` task.
+  </Accordion>
+
+  <Accordion title="run_backup — Index backup">
+    Creates a ZIP archive of all Elasticsearch indexes and stores it in the backup directory. Accepts a `rotate` config key to control how many backups to retain before deleting older ones.
+
+    ```json Keep the last 3 backups
+    {
+      "config": { "rotate": 3 }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="version_check — Check for new version">
+    Queries the Tube Archivist release API for a newer version and displays a notification in the footer if one is found. Runs once daily.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Configuring schedules in the UI
+
+<Steps>
+  <Step title="Open Settings">
+    Navigate to **Settings → Scheduling** in the Tube Archivist web interface.
+  </Step>
+  <Step title="Set a schedule">
+    For each task you want to schedule, enter a cron expression in the three-field format (`minute hour day_of_week`) and click **Save**. Enter `auto` to apply the built-in default schedule for that task.
+  </Step>
+  <Step title="Configure task options (optional)">
+    Some tasks accept additional configuration. For `check_reindex`, you can set the reindex age in days. For `run_backup`, you can set a rotation count.
+  </Step>
+  <Step title="Verify">
+    The schedule list shows the next scheduled run time for each active task.
+  </Step>
+</Steps>
+
+---
+
+## Configuring schedules via the API
+
+### List all active schedules
+
+```bash
+curl http://localhost:8000/api/task/schedule/ \
+  -H "Authorization: Token <your-token>"
+```
+
+### Create or update a schedule
+
+```bash Schedule update_subscribed to run daily at 06:00
+curl -X POST http://localhost:8000/api/task/schedule/update_subscribed/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"schedule": "0 6 *"}'
+```
+
+```bash Schedule run_backup on Sundays at 02:00 and rotate after 5 backups
+curl -X POST http://localhost:8000/api/task/schedule/run_backup/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"schedule": "0 2 0", "config": {"rotate": 5}}'
+```
+
+```bash Apply the built-in default schedule for download_pending
+curl -X POST http://localhost:8000/api/task/schedule/download_pending/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"schedule": "auto"}'
+```
+
+### Delete a schedule
+
+```bash
+curl -X DELETE http://localhost:8000/api/task/schedule/update_subscribed/ \
+  -H "Authorization: Token <your-token>"
+```
+
+---
+
+## Triggering tasks manually
+
+Any task with `api_start: true` (see the table above) can be started immediately without waiting for the next scheduled run.
+
+### From the UI
+
+Navigate to **Settings → Actions** and click the **Run** button next to the task you want to execute.
+
+### Via the API
+
+```bash Start a subscription rescan now
+curl -X POST http://localhost:8000/api/task/by-name/update_subscribed/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```bash Start a download run now
+curl -X POST http://localhost:8000/api/task/by-name/download_pending/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```bash Start a backup now
+curl -X POST http://localhost:8000/api/task/by-name/run_backup/ \
+  -H "Authorization: Token <your-token>"
+```
+
+The response includes a `task_id` you can use to poll the task status:
+
+```bash Check task status
+curl http://localhost:8000/api/task/by-id/<task-id>/ \
+  -H "Authorization: Token <your-token>"
+```
+
+---
+
+## Stopping a running task
+
+Tasks that support stopping (`update_subscribed`, `download_pending`, `extract_download`) can be stopped or killed via the API:
+
+```bash Stop a task gracefully
+curl -X POST http://localhost:8000/api/task/by-id/<task-id>/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "stop"}'
+```
+
+```bash Kill a task immediately
+curl -X POST http://localhost:8000/api/task/by-id/<task-id>/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "kill"}'
+```
+
+---
+
+## Notifications with Apprise
+
+Tube Archivist uses [Apprise](https://github.com/caronc/apprise) to send notifications when a scheduled or manual task completes. Apprise supports over 80 notification services including Slack, Discord, Gotify, ntfy, Pushover, Telegram, and email.
+
+Notifications are configured per task using Apprise-compatible URLs.
+
+### Adding a notification URL
+
+```bash Notify a Discord webhook when run_backup completes
+curl -X POST http://localhost:8000/api/task/notification/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_name": "run_backup",
+    "url": "discord://webhook-id/webhook-token"
+  }'
+```
+
+```bash Notify via ntfy when download_pending completes
+curl -X POST http://localhost:8000/api/task/notification/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_name": "download_pending",
+    "url": "ntfy://ntfy.sh/my-topic"
+  }'
+```
+
+### Listing all notification URLs
+
+```bash
+curl http://localhost:8000/api/task/notification/ \
+  -H "Authorization: Token <your-token>"
+```
+
+### Removing a notification URL
+
+```bash Remove a specific URL from a task
+curl -X DELETE http://localhost:8000/api/task/notification/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_name": "run_backup",
+    "url": "discord://webhook-id/webhook-token"
+  }'
+```
+
+```bash Remove all notifications for a task
+curl -X DELETE http://localhost:8000/api/task/notification/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"task_name": "run_backup"}'
+```
+
+### Testing a notification URL
+
+```bash
+curl -X POST http://localhost:8000/api/task/notification/test/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "discord://webhook-id/webhook-token"}'
+```
+
+### Notification content
+
+Each notification includes:
+
+- **Title**: `[TA] <Task title> process ended with <STATUS>`
+- **Body**: The task result message (for example, `"downloaded 12 video(s)."`)
+
+<Tip>
+  Refer to the [Apprise wiki](https://github.com/caronc/apprise/wiki) for the URL format for each supported notification service.
+</Tip>

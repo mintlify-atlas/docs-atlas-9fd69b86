@@ -1,0 +1,162 @@
+---
+title: 'API overview'
+description: 'REST API for Tube Archivist — base URL, content type, pagination, and response shapes.'
+---
+
+Tube Archivist exposes a REST API that lets you query and control every part of the application: videos, channels, playlists, the download queue, background tasks, settings, and statistics.
+
+## Base URL
+
+```
+http://your-host:8000/api/
+```
+
+All paths in this reference are relative to that base URL.
+
+## Content type
+
+All request and response bodies use JSON. Set the `Content-Type` header on every write request:
+
+```
+Content-Type: application/json
+```
+
+## Authentication
+
+Every request (except `GET /api/health/` and `POST /api/user/login/`) requires a token in the `Authorization` header:
+
+```
+Authorization: Token <your-token>
+```
+
+See the [Authentication](/api/authentication) page for how to obtain and use a token.
+
+## Interactive docs
+
+Tube Archivist serves a Swagger UI at `/api/docs/` and an OpenAPI schema at `/api/schema/`. Both are generated automatically from the source code using `drf_spectacular`.
+
+| URL | Description |
+|---|---|
+| `/api/docs/` | Swagger UI — browse and try every endpoint interactively |
+| `/api/schema/` | Download the raw OpenAPI 3 schema (YAML) |
+
+## Available endpoints
+
+| Resource | Base path | Description |
+|---|---|---|
+| Video | `/api/video/` | List, retrieve, update, and delete videos |
+| Channel | `/api/channel/` | List, subscribe, and manage channels |
+| Playlist | `/api/playlist/` | YouTube playlists and custom playlists |
+| Download queue | `/api/download/` | Queue management and status updates |
+| Tasks | `/api/task/` | Background tasks, schedules, and notifications |
+| Settings | `/api/appsettings/` | App configuration, backups, snapshots, cookies |
+| Stats | `/api/stats/` | Aggregated statistics for videos, channels, and more |
+| User | `/api/user/` | Login, logout, account, and per-user config |
+
+<CardGroup cols={2}>
+  <Card title="Video" icon="film" href="/api/video">
+    List, retrieve, update, and delete archived videos.
+  </Card>
+  <Card title="Channel" icon="tv" href="/api/channel">
+    Subscribe to channels and manage channel settings.
+  </Card>
+  <Card title="Playlist" icon="list" href="/api/playlist">
+    YouTube playlists and user-created custom playlists.
+  </Card>
+  <Card title="Download queue" icon="download" href="/api/download">
+    Add URLs to the queue and track download status.
+  </Card>
+  <Card title="Tasks" icon="clock" href="/api/task">
+    Trigger background tasks and manage schedules.
+  </Card>
+  <Card title="Settings" icon="gear" href="/api/settings">
+    Configure the application, snapshots, backups, and cookies.
+  </Card>
+  <Card title="Stats" icon="chart-bar" href="/api/stats">
+    Library statistics, download history, and biggest channels.
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Token-based authentication and login/logout flows.
+  </Card>
+</CardGroup>
+
+## Pagination
+
+List endpoints return paginated results in the following shape:
+
+```json
+{
+  "data": [ ... ],
+  "paginate": {
+    "page_size": 32,
+    "page_from": 0,
+    "prev_pages": null,
+    "next_pages": 2,
+    "current_page": 0
+  }
+}
+```
+
+Pass the `page` query parameter to navigate pages (zero-indexed):
+
+```
+GET /api/video/?page=1
+```
+
+## Common response shapes
+
+### Success
+
+Successful reads return the serialized resource at the top level or inside a `data` array for lists:
+
+```json
+{
+  "youtube_id": "dQw4w9WgXcQ",
+  "title": "Example Video",
+  ...
+}
+```
+
+### Error
+
+Errors return an `error` key with a description:
+
+```json
+{
+  "error": "video not found"
+}
+```
+
+### Async task
+
+Endpoints that start a background task return the task ID immediately:
+
+```json
+{
+  "message": "task started",
+  "task_id": "c9a1b2d3-..."
+}
+```
+
+Use the task ID with [GET /api/task/by-id/\<task\_id\>/](/api/task) to poll the task result.
+
+## Health check
+
+`GET /api/health/` returns `200 OK` with the body `"OK"`. No authentication is required. Use this endpoint for container health probes.
+
+```bash
+curl http://your-host:8000/api/health/
+```
+
+## Ping
+
+`GET /api/ping/` verifies authentication and returns the current user and version:
+
+```json
+{
+  "response": "pong",
+  "user": 1,
+  "version": "0.4.10",
+  "ta_update": false
+}
+```

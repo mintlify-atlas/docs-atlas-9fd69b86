@@ -1,0 +1,325 @@
+---
+title: 'Podman'
+description: 'Run Tube Archivist with Podman using pods, podman-compose, or systemd integration.'
+---
+
+Podman is a daemonless container engine that can run Tube Archivist without Docker. The key differences from Docker are that Podman runs **rootless by default** and groups containers into **pods** rather than relying on a daemon-managed network.
+
+## Prerequisites
+
+- Podman 4.0 or later
+- `podman-compose` (optional, for compose-file deployments)
+- Root access or a configured rootless Podman environment
+- `vm.max_map_count` set to at least `262144` on the host — Elasticsearch requires this regardless of the container runtime
+
+<Warning>
+  The `vm.max_map_count` requirement is a host kernel setting, not a container
+  setting. It must be applied on the host before Elasticsearch will start.
+
+  ```bash
+  sudo sysctl -w vm.max_map_count=262144
+  ```
+
+  To persist across reboots, add `vm.max_map_count = 262144` to `/etc/sysctl.conf`
+  or a file in `/etc/sysctl.d/`.
+</Warning>
+
+## Approach 1: Podman pod
+
+A Podman pod shares a network namespace across all containers inside it, which mirrors how Docker Compose networking works. Containers in the same pod communicate over `localhost` by port.
+
+<Steps>
+  <Step title="Create the pod">
+    Create a pod named `tubearchivist` and expose the web interface on port 8000:
+
+    ```bash
+    podman pod create \
+      --name tubearchivist \
+      -p 8000:8000
+    ```
+  </Step>
+
+  <Step title="Start Elasticsearch">
+    ```bash
+    podman run -d \
+      --pod tubearchivist \
+      --name archivist-es \
+      --restart unless-stopped \
+      -e ELASTIC_PASSWORD=verysecret \
+      -e "ES_JAVA_OPTS=-Xms1g -Xmx1g" \
+      -e xpack.security.enabled=true \
+      -e discovery.type=single-node \
+      -e "path.repo=/usr/share/elasticsearch/data/snapshot" \
+      --ulimit memlock=-1:-1 \
+      -v es-data:/usr/share/elasticsearch/data \
+      bbilly1/tubearchivist-es
+    ```
+
+    Wait for Elasticsearch to finish initializing before starting the next container. You can follow its logs:
+
+    ```bash
+    podman logs -f archivist-es
+    ```
+
+    Look for `started` in the log output before proceeding.
+  </Step>
+
+  <Step title="Start Redis">
+    ```bash
+    podman run -d \
+      --pod tubearchivist \
+      --name archivist-redis \
+      --restart unless-stopped \
+      -v redis-data:/data \
+      redis
+    ```
+  </Step>
+
+  <Step title="Start Tube Archivist">
+    Inside a pod, containers share `localhost`, so `ES_URL` points to `localhost:9200` and `REDIS_CON` to `localhost:6379`:
+
+    ```bash
+    podman run -d \
+      --pod tubearchivist \
+      --name tubearchivist \
+      --restart unless-stopped \
+      -e ES_URL=http://localhost:9200 \
+      -e REDIS_CON=redis://localhost:6379 \
+      -e HOST_UID=1000 \
+      -e HOST_GID=1000 \
+      -e TA_HOST=http://tubearchivist.local:8000 \
+      -e TA_USERNAME=tubearchivist \
+      -e TA_PASSWORD=verysecret \
+      -e ELASTIC_PASSWORD=verysecret \
+      -e TZ=America/New_York \
+      -v /path/to/media:/youtube \
+      -v /path/to/cache:/cache \
+      bbilly1/tubearchivist
+    ```
+
+    Replace `/path/to/media` and `/path/to/cache` with absolute paths on your host.
+  </Step>
+
+  <Step title="Verify startup">
+    ```bash
+    podman pod ps
+    podman ps --pod
+    ```
+
+    Open `http://localhost:8000` in a browser and log in with the credentials you configured.
+  </Step>
+</Steps>
+
+## Approach 2: podman-compose
+
+If you prefer the Docker Compose workflow, `podman-compose` can deploy the same `docker-compose.yml` used for Docker.
+
+<Steps>
+  <Step title="Install podman-compose">
+    ```bash
+    pip install podman-compose
+    ```
+
+    Or use your distribution's package manager:
+
+    ```bash
+    # Fedora / RHEL
+    sudo dnf install podman-compose
+
+    # Arch Linux
+    sudo pacman -S podman-compose
+    ```
+  </Step>
+
+  <Step title="Create the compose file">
+    Save the following as `docker-compose.yml`:
+
+    ```yaml
+    services:
+      tubearchivist:
+        container_name: tubearchivist
+        restart: unless-stopped
+        image: bbilly1/tubearchivist
+        ports:
+          - 8000:8000
+        volumes:
+          - /path/to/media:/youtube
+          - /path/to/cache:/cache
+        environment:
+          - ES_URL=http://archivist-es:9200
+          - REDIS_CON=redis://archivist-redis:6379
+          - HOST_UID=1000
+          - HOST_GID=1000
+          - TA_HOST=http://tubearchivist.local:8000
+          - TA_USERNAME=tubearchivist
+          - TA_PASSWORD=verysecret
+          - ELASTIC_PASSWORD=verysecret
+          - TZ=America/New_York
+        depends_on:
+          - archivist-es
+          - archivist-redis
+
+      archivist-redis:
+        image: redis
+        container_name: archivist-redis
+        restart: unless-stopped
+        expose:
+          - "6379"
+        volumes:
+          - redis-data:/data
+        depends_on:
+          - archivist-es
+
+      archivist-es:
+        image: bbilly1/tubearchivist-es
+        container_name: archivist-es
+        restart: unless-stopped
+        environment:
+          - "ELASTIC_PASSWORD=verysecret"
+          - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+          - "xpack.security.enabled=true"
+          - "discovery.type=single-node"
+          - "path.repo=/usr/share/elasticsearch/data/snapshot"
+        ulimits:
+          memlock:
+            soft: -1
+            hard: -1
+        volumes:
+          - es-data:/usr/share/elasticsearch/data
+        expose:
+          - "9200"
+
+    volumes:
+      redis-data:
+      es-data:
+    ```
+  </Step>
+
+  <Step title="Start the stack">
+    ```bash
+    podman-compose up -d
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  `podman-compose` creates a network for service-to-service DNS resolution using
+  container names, so `ES_URL=http://archivist-es:9200` works the same as in
+  Docker Compose.
+</Note>
+
+## Rootless Podman and volume permissions
+
+When running Podman as a non-root user, container UIDs are mapped through the user's subuid/subgid ranges. This can cause permission errors when mounting host directories.
+
+Use `--userns=keep-id` to map the container's user to your host UID:
+
+```bash
+podman run -d \
+  --userns=keep-id \
+  -v /path/to/media:/youtube \
+  ...
+  bbilly1/tubearchivist
+```
+
+This tells Podman to keep your host UID as the container's UID, so files written to the volume are owned by your user rather than a remapped UID.
+
+Set `HOST_UID` and `HOST_GID` to your own UID/GID:
+
+```bash
+id   # shows your uid and gid
+```
+
+<Tip>
+  You do not need `--privileged` as long as `vm.max_map_count` is set correctly
+  on the host. Avoid `--privileged` — it grants the container unnecessary access
+  to host resources.
+</Tip>
+
+## Systemd integration
+
+Podman can generate systemd units that start containers (or pods) on boot without a daemon.
+
+### Generate units for the pod
+
+After creating and starting your pod and containers, generate the systemd units:
+
+```bash
+podman generate systemd \
+  --name tubearchivist \
+  --new \
+  --files
+```
+
+This writes unit files such as `pod-tubearchivist.service` and per-container `.service` files into your current directory.
+
+### Install and enable the units
+
+For a rootless (user-level) install:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp *.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now pod-tubearchivist.service
+```
+
+For a system-level (root) install:
+
+```bash
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pod-tubearchivist.service
+```
+
+Enable lingering so user services survive logout:
+
+```bash
+loginctl enable-linger $USER
+```
+
+### Verify the service
+
+```bash
+systemctl --user status pod-tubearchivist.service
+```
+
+## Environment variables
+
+All environment variables mirror the Docker Compose setup:
+
+| Variable           | Example value                   | Description                                   |
+| ------------------ | ------------------------------- | --------------------------------------------- |
+| `ES_URL`           | `http://archivist-es:9200`      | Elasticsearch URL (container name or localhost in pod) |
+| `REDIS_CON`        | `redis://archivist-redis:6379`  | Redis connection string                        |
+| `HOST_UID`         | `1000`                          | UID for media file ownership                   |
+| `HOST_GID`         | `1000`                          | GID for media file ownership                   |
+| `TA_HOST`          | `http://tubearchivist.local:8000` | Full URL to reach Tube Archivist             |
+| `TA_USERNAME`      | `tubearchivist`                 | Initial admin username                         |
+| `TA_PASSWORD`      | `verysecret`                    | Initial admin password                         |
+| `ELASTIC_PASSWORD` | `verysecret`                    | Must match the value set on `archivist-es`     |
+| `TZ`               | `America/New_York`              | Timezone for the scheduler                     |
+
+<Note>
+  When using a Podman pod, containers share `localhost`. Set `ES_URL` to
+  `http://localhost:9200` and `REDIS_CON` to `redis://localhost:6379` in that
+  case. When using `podman-compose`, use container names as hostnames instead.
+</Note>
+
+## Updating
+
+Pull updated images and recreate the containers:
+
+```bash
+# With podman-compose
+podman-compose pull
+podman-compose up -d
+
+# With a pod
+podman pull bbilly1/tubearchivist
+podman pull bbilly1/tubearchivist-es
+podman pull redis
+# Then stop, remove, and recreate each container
+```
+
+Always check the [release notes](https://github.com/tubearchivist/tubearchivist/releases) before updating — some releases require new environment variables or manual migration steps.

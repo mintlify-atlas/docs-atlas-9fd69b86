@@ -1,0 +1,81 @@
+---
+title: "Jellyfin"
+description: "Sync your Tube Archivist video library into Jellyfin for a full media center experience with metadata, thumbnails, and watched-state sync."
+---
+
+The **Tube Archivist Jellyfin Plugin** connects your Tube Archivist instance to Jellyfin so your archived YouTube videos appear as a native Jellyfin library — complete with titles, descriptions, thumbnails, and watched state synced between both applications.
+
+Plugin source: [github.com/tubearchivist/tubearchivist-jf-plugin](https://github.com/tubearchivist/tubearchivist-jf-plugin)
+
+<Note>
+  A **Plex** plugin is also available at [github.com/tubearchivist/tubearchivist-plex](https://github.com/tubearchivist/tubearchivist-plex) if you use Plex instead of Jellyfin.
+</Note>
+
+## What gets synced
+
+| Item | Synced |
+|------|--------|
+| Video files | Yes — streamed or served from the Tube Archivist media volume |
+| Titles and descriptions | Yes |
+| Channel and upload date metadata | Yes |
+| Thumbnails | Yes |
+| Watched / unwatched state | Yes — bidirectional between TA and Jellyfin |
+
+## Prerequisites
+
+- A running Jellyfin instance (version compatible with the plugin — check the plugin's repository for the tested Jellyfin version).
+- A running Tube Archivist instance with the API accessible from the Jellyfin host.
+- A Tube Archivist API token. Generate one under **Settings → User → API token**.
+
+## Installation
+
+<Steps>
+  <Step title="Add the plugin repository to Jellyfin">
+    In Jellyfin, navigate to **Dashboard → Plugins → Repositories** and add the Tube Archivist plugin repository URL. The exact URL is listed in the [plugin README](https://github.com/tubearchivist/tubearchivist-jf-plugin).
+  </Step>
+  <Step title="Install the plugin">
+    Go to **Dashboard → Plugins → Catalog**, find **TubeArchivist**, and click **Install**. Restart Jellyfin when prompted.
+  </Step>
+  <Step title="Open plugin configuration">
+    After restarting, go to **Dashboard → Plugins → TubeArchivist** to open the configuration page.
+  </Step>
+  <Step title="Set the Tube Archivist API URL">
+    Enter the full URL of your Tube Archivist instance, including protocol and port.
+
+    ```text
+    http://tubearchivist.local:8000
+    ```
+  </Step>
+  <Step title="Enter your API token">
+    Paste your Tube Archivist API token into the **API token** field.
+  </Step>
+  <Step title="Save and trigger an initial sync">
+    Save the configuration. Trigger a library scan in Jellyfin to populate the library for the first time.
+  </Step>
+</Steps>
+
+### Manual installation
+
+If you prefer to install the plugin manually:
+
+1. Download the latest `.dll` release from the [GitHub releases page](https://github.com/tubearchivist/tubearchivist-jf-plugin/releases).
+2. Copy the file to your Jellyfin plugins directory (typically `/config/plugins/` in Docker installs).
+3. Restart Jellyfin and complete the configuration steps above.
+
+## Watched state sync
+
+When you mark a video as watched in Jellyfin, the plugin can propagate that state back to Tube Archivist, keeping your progress consistent across both interfaces. Check the plugin's configuration options for the sync direction and frequency settings, as these may vary between plugin versions.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Videos are not appearing in Jellyfin">
+    Verify that the Tube Archivist API URL and token are correct in the plugin settings. Confirm that Jellyfin can reach your Tube Archivist instance over the network. Trigger a manual library refresh in Jellyfin after saving settings.
+  </Accordion>
+  <Accordion title="Thumbnails are missing">
+    Thumbnails are fetched via the Tube Archivist API. Ensure the API is reachable and that your API token has the correct permissions. Check the Jellyfin log for network errors from the plugin.
+  </Accordion>
+  <Accordion title="Watched state is not syncing">
+    Watched-state sync may require a specific configuration option to be enabled in the plugin. Check the plugin settings page and the plugin README for the correct setting.
+  </Accordion>
+</AccordionGroup>

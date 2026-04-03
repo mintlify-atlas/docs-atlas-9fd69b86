@@ -1,0 +1,78 @@
+---
+title: "Browser extension"
+description: "Send videos and channels from YouTube directly to your Tube Archivist instance with one click using the Tube Archivist Companion browser extension."
+---
+
+The **Tube Archivist Companion** extension adds a button to YouTube video and channel pages so you can queue downloads or subscribe to channels without leaving your browser.
+
+<CardGroup cols={2}>
+  <Card title="Firefox Add-ons" icon="firefox" href="https://addons.mozilla.org/addon/tubearchivist-companion/">
+    Install for Firefox
+  </Card>
+  <Card title="Chrome Web Store" icon="chrome" href="https://chrome.google.com/webstore/detail/tubearchivist-companion/jjnkmicfnfojkkgobdfeieblocadmcie">
+    Install for Chrome (and Chromium browsers)
+  </Card>
+</CardGroup>
+
+Source code and issue tracker: [github.com/tubearchivist/browser-extension](https://github.com/tubearchivist/browser-extension)
+
+## What the extension does
+
+- On a **YouTube video page** — adds a button to send that video directly to your Tube Archivist download queue.
+- On a **YouTube channel page** — adds a button to subscribe to that channel in Tube Archivist.
+
+The extension communicates with your Tube Archivist instance over its REST API, so your TA instance must be reachable from the browser running the extension.
+
+## Prerequisites
+
+- Tube Archivist is installed and running.
+- You have a Tube Archivist API token. Generate one under **Settings → User → API token**.
+
+## Configuration
+
+<Steps>
+  <Step title="Install the extension">
+    Install the extension from the [Firefox Add-ons](https://addons.mozilla.org/addon/tubearchivist-companion/) page or the [Chrome Web Store](https://chrome.google.com/webstore/detail/tubearchivist-companion/jjnkmicfnfojkkgobdfeieblocadmcie).
+  </Step>
+  <Step title="Open extension settings">
+    Click the extension icon in your browser toolbar and open its settings or options page.
+  </Step>
+  <Step title="Enter your Tube Archivist URL">
+    Set the **TA URL** field to the full address of your Tube Archivist instance, including the protocol and port if needed.
+
+    ```text
+    http://tubearchivist.local:8000
+    ```
+
+    <Note>
+      The URL must be reachable from the browser. If you access Tube Archivist through a reverse proxy or a different hostname, use that address here.
+    </Note>
+  </Step>
+  <Step title="Enter your API token">
+    Paste your API token into the **API token** field. You can find or regenerate your token under **Settings → User** in the Tube Archivist interface.
+  </Step>
+  <Step title="Save and verify">
+    Save the settings. The extension will test the connection to your instance. A green indicator means the extension is connected and ready.
+  </Step>
+</Steps>
+
+## Usage
+
+Navigate to any YouTube video or channel page. You will see a Tube Archivist button added to the page.
+
+| Page type | Button action |
+|-----------|---------------|
+| Video page | Adds the video to your Tube Archivist download queue |
+| Channel page | Subscribes to the channel in Tube Archivist |
+
+Click the button once. The extension calls the Tube Archivist API in the background. A brief confirmation message appears when the action succeeds.
+
+<Tip>
+  After sending a video to the queue, start the download from the **Downloads** page in Tube Archivist, or rely on a scheduled auto-download if you have one configured.
+</Tip>
+
+## CORS and network access
+
+Tube Archivist is configured to accept requests from browser extensions (`moz-extension://` and `chrome-extension://` origins) by default. You do not need to change any CORS settings for normal extension use.
+
+If you have placed Tube Archivist behind a reverse proxy, ensure the proxy passes the `Origin` header through to the backend unchanged.

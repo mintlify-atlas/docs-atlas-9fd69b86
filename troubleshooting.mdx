@@ -1,0 +1,187 @@
+---
+title: "Troubleshooting"
+description: "Solutions to common problems when running Tube Archivist, including Elasticsearch errors, playback issues, and port conflicts."
+---
+
+## Elasticsearch won't start: `vm.max_map_count`
+
+Elasticsearch in Docker requires the host kernel setting `vm.max_map_count` to be at least `262144`. If it is lower, Elasticsearch exits immediately and you will see an error like:
+
+```
+max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]
+```
+
+**Temporary fix** (resets on reboot):
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
+```
+
+**Permanent fix** — the method depends on your operating system:
+
+<Tabs>
+  <Tab title="Ubuntu / Debian">
+    Add the following line to `/etc/sysctl.conf`:
+
+    ```text
+    vm.max_map_count = 262144
+    ```
+
+    Apply without rebooting:
+
+    ```bash
+    sudo sysctl -p
+    ```
+  </Tab>
+  <Tab title="Arch Linux">
+    Create the file `/etc/sysctl.d/max_map_count.conf` with the following content:
+
+    ```text
+    vm.max_map_count = 262144
+    ```
+
+    Apply without rebooting:
+
+    ```bash
+    sudo sysctl --system
+    ```
+  </Tab>
+  <Tab title="Other distributions">
+    Consult your distribution's documentation for how to set kernel parameters persistently. The value to set is `vm.max_map_count = 262144`.
+  </Tab>
+</Tabs>
+
+---
+
+## Elasticsearch permission errors
+
+If Elasticsearch fails to start with a message similar to:
+
+```
+Unable to access 'path.repo' (/usr/share/elasticsearch/data/snapshot)
+```
+
+or:
+
+```
+failed to obtain node locks, tried [/usr/share/elasticsearch/data] ... maybe these locations are not writable
+```
+
+the container does not have write permission to its data volume. This typically happens when using a bind mount instead of a named Docker volume.
+
+**Fix:** stop the containers and run the following on your host, replacing the path with your actual mount point:
+
+```bash
+chown 1000:0 -R /path/to/mount/point
+```
+
+This sets ownership to UID `1000` and GID `0`, matching the user and group that the Elasticsearch process runs as inside the container.
+
+---
+
+## Elasticsearch read-only mode: disk usage above 95%
+
+When disk usage on the Elasticsearch container's volume exceeds 95%, Elasticsearch automatically switches the index to **read-only** mode to protect against data corruption. You will see errors like:
+
+```
+disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
+```
+
+The index returns to read-write mode automatically once usage drops below 90%. To resolve this:
+
+1. Free up disk space on the host or expand the volume.
+2. Once usage is below 90%, the read-only block is lifted automatically. You can also clear it manually with the Elasticsearch API if needed.
+
+<Warning>
+  Tube Archivist can behave unpredictably when it runs out of disk space. Monitor disk usage and ensure enough free space is available before starting large downloads.
+</Warning>
+
+---
+
+## `error setting rlimit` / OCI runtime error
+
+If you see errors like:
+
+```
+failed to create shim: OCI runtime create failed
+error during container init: error setting rlimits
+```
+
+Docker cannot apply the `ulimits` configured for the Elasticsearch container. This commonly occurs with nested virtualizations such as LXC running Docker inside Proxmox.
+
+**Fix:** remove the `ulimits` block from the `archivist-es` service in your `docker-compose.yml` and restart the containers:
+
+```yaml
+# Remove or comment out this block from archivist-es:
+# ulimits:
+#   memlock:
+#     soft: -1
+#     hard: -1
+```
+
+```bash
+docker compose up -d
+```
+
+---
+
+## Videos not playing in the browser
+
+Video playback requires that your browser supports the codec of the downloaded file. Not every codec works in every browser.
+
+For broad compatibility — especially with iOS, macOS Safari, and other strict browsers — set a compatible **Download Format** in **Settings → Download**:
+
+```text
+bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+```
+
+This selects H.264 video and AAC audio in an MP4 container. Apply this setting before downloading; it does not re-encode files that are already in your archive.
+
+<Note>
+  This is a known limitation: video files must be playable by your browser of choice. Testing with different format strings may be needed depending on your devices and browsers.
+</Note>
+
+---
+
+## Port 8000 already in use
+
+Tube Archivist listens on port `8000` by default. If another service on your host is already using that port, the container will fail to start.
+
+**Fix:** change only the host-side port in your `docker-compose.yml` using Docker's `HOST_PORT:CONTAINER_PORT` syntax. The following example moves the interface to port `9000` on the host while the container continues to use `8000` internally:
+
+```yaml
+ports:
+  - 9000:8000
+```
+
+Update `TA_HOST` to reflect the new port:
+
+```yaml
+environment:
+  - TA_HOST=http://tubearchivist.local:9000
+```
+
+---
+
+## Getting debug logs
+
+Set `DJANGO_DEBUG=True` in your environment to enable verbose error output and detailed Django logs. This is useful when diagnosing unexpected behavior or API errors.
+
+```yaml
+# docker-compose.yml
+environment:
+  - DJANGO_DEBUG=True
+```
+
+<Warning>
+  Do not run with `DJANGO_DEBUG=True` in a production or internet-facing setup. Debug mode exposes detailed error pages and additional information that should not be public.
+</Warning>
+
+Restart your containers after adding the variable, then tail the logs:
+
+```bash
+docker compose up -d
+docker logs -f tubearchivist
+```
+
+Apprise notification errors are also logged at `DEBUG` level when this setting is enabled.

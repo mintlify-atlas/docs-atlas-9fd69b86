@@ -1,24 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Tube Archivist",
+  "projectType": "saas",
+  "projectName": "Tube Archivist",
+  "projectDescription": "A self-hosted YouTube media server that lets you subscribe to channels, download videos via yt-dlp, and browse your archive through a searchable web interface backed by Elasticsearch.",
   "theme": "aspen",
-  "colors": {
-    "primary": "#2b9e8b",
-    "light": "#06252e",
-    "dark": "#c0c6c9"
-  },
-  "favicon": "https://media.brand.dev/c95b3b08-27e5-4483-817f-4ef79923af86.png",
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/tubearchivist/tubearchivist"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/tubearchivist/tubearchivist"
-    }
-  },
+  "primaryColor": "#2b9e8b",
+  "lightColor": "#06252e",
+  "darkColor": "#c0c6c9",
   "navigation": {
     "tabs": [
       {
@@ -102,5 +89,44 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Subscribe to YouTube channels and auto-download new videos",
+    "Download videos using yt-dlp with configurable quality/format settings",
+    "Full-text search powered by Elasticsearch across videos, channels, and subtitles",
+    "Scheduled downloads and background task management via Celery",
+    "SponsorBlock integration to skip sponsored segments",
+    "Comment and subtitle indexing for searchable content",
+    "User-created and YouTube playlists with full management",
+    "Statistics dashboard with watch progress and download history",
+    "REST API with token authentication for third-party integrations",
+    "Docker-based deployment with Nginx, Redis, and Elasticsearch"
+  ],
+  "publicApiSurface": [
+    "GET/POST /api/video/",
+    "GET/PUT/DELETE /api/video/<video_id>/",
+    "GET /api/video/<video_id>/comment/",
+    "GET /api/video/<video_id>/similar/",
+    "GET/PUT /api/video/<video_id>/progress/",
+    "GET/POST /api/channel/",
+    "GET/PUT/DELETE /api/channel/<channel_id>/",
+    "GET/POST /api/playlist/",
+    "GET/PUT/DELETE /api/playlist/<playlist_id>/",
+    "GET/POST /api/download/",
+    "GET/PUT/DELETE /api/download/<video_id>/",
+    "GET/POST /api/task/by-name/",
+    "GET/POST /api/task/schedule/",
+    "GET/PUT /api/appsettings/config/",
+    "GET/POST /api/appsettings/snapshot/",
+    "GET/POST /api/appsettings/backup/",
+    "GET/POST /api/appsettings/cookie/",
+    "GET /api/stats/video/",
+    "GET /api/stats/channel/",
+    "GET /api/stats/watch/",
+    "GET /api/search/",
+    "GET /api/ping/",
+    "GET /api/health/",
+    "POST /api/user/login/",
+    "GET/PUT /api/user/me/"
+  ]
 }

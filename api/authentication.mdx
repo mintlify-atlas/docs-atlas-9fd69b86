@@ -1,0 +1,183 @@
+---
+title: 'Authentication'
+description: 'Token-based authentication for the Tube Archivist API.'
+---
+
+The Tube Archivist API uses token-based authentication. Every request (except the health check and login) must include a valid token in the `Authorization` header.
+
+## Get your API token
+
+### From the UI
+
+1. Open Tube Archivist in your browser.
+2. Go to **Settings** > **API Token**.
+3. Copy the displayed token.
+
+### From the API
+
+Send a GET request to retrieve your token programmatically:
+
+```bash
+curl -X GET http://your-host:8000/api/appsettings/token/ \
+  -H "Authorization: Token <your-token>"
+```
+
+Response:
+
+```json
+{
+  "token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+}
+```
+
+To revoke the current token and force a new one to be generated, send a DELETE to the same endpoint:
+
+```bash
+curl -X DELETE http://your-host:8000/api/appsettings/token/ \
+  -H "Authorization: Token <your-token>"
+```
+
+Tokens are per-user. Each user account has its own token.
+
+## Pass the token in requests
+
+Include the token in the `Authorization` header on every request:
+
+```
+Authorization: Token <your-token>
+```
+
+<CodeGroup>
+
+```bash curl
+curl -X GET http://your-host:8000/api/video/ \
+  -H "Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+```
+
+```python Python
+import requests
+
+TOKEN = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+BASE_URL = "http://your-host:8000/api"
+
+headers = {"Authorization": f"Token {TOKEN}"}
+
+response = requests.get(f"{BASE_URL}/video/", headers=headers)
+response.raise_for_status()
+print(response.json())
+```
+
+```javascript JavaScript
+const TOKEN = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b";
+const BASE_URL = "http://your-host:8000/api";
+
+const response = await fetch(`${BASE_URL}/video/`, {
+  headers: {
+    "Authorization": `Token ${TOKEN}`,
+  },
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+## Login
+
+If you prefer session-based access (for browser clients), log in with your username and password. A successful login sets a session cookie valid for 2 days (or 1 year if `remember_me` is set).
+
+**`POST /api/user/login/`** — no authentication required
+
+<ParamField body="username" type="string" required>
+  Tube Archivist account username.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Account password.
+</ParamField>
+
+<ParamField body="remember_me" type="string">
+  Pass `"on"` to extend the session to 365 days.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/user/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "yourpassword"}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/user/login/",
+    json={"username": "admin", "password": "yourpassword"},
+)
+# 204 No Content on success — session cookie is set automatically
+print(response.status_code)
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/user/login/", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ username: "admin", password: "yourpassword" }),
+});
+// 204 No Content on success
+console.log(response.status);
+```
+
+</CodeGroup>
+
+Returns `204 No Content` on success. Returns `400` with `{"error": "Invalid credentials"}` on failure.
+
+## Logout
+
+**`POST /api/user/logout/`** — requires authentication
+
+Terminates the current session.
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/user/logout/ \
+  -H "Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+```
+
+```python Python
+import requests
+
+TOKEN = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+response = requests.post(
+    "http://your-host:8000/api/user/logout/",
+    headers={"Authorization": f"Token {TOKEN}"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/user/logout/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b",
+  },
+});
+console.log(response.status); // 204
+```
+
+</CodeGroup>
+
+Returns `204 No Content`.
+
+## Unauthenticated endpoints
+
+The following endpoints do not require a token:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/health/` | Container health check |
+| `POST /api/user/login/` | Exchange credentials for a session |

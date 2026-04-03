@@ -1,0 +1,649 @@
+---
+title: 'Stats'
+description: 'Endpoints for library statistics, download history, and channel size rankings.'
+---
+
+The stats endpoints return aggregated metrics about your Tube Archivist library. All stats endpoints require authentication.
+
+---
+
+## Video statistics
+
+`GET /api/stats/video/`
+
+Returns aggregate statistics across all archived videos, broken down by video type and active state.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/video/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/video/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/video/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "doc_count": 1420,
+  "media_size": 429496729600,
+  "duration": 5184000,
+  "duration_str": "1440:00:00",
+  "type_videos": {
+    "doc_count": 1200,
+    "media_size": 360000000000,
+    "duration": 4320000,
+    "duration_str": "1200:00:00"
+  },
+  "type_shorts": {
+    "doc_count": 180,
+    "media_size": 54000000000,
+    "duration": 648000,
+    "duration_str": "180:00:00"
+  },
+  "type_streams": {
+    "doc_count": 40,
+    "media_size": 15496729600,
+    "duration": 216000,
+    "duration_str": "60:00:00"
+  },
+  "active_true": {
+    "doc_count": 1380,
+    "media_size": 415000000000,
+    "duration": 5040000,
+    "duration_str": "1400:00:00"
+  },
+  "active_false": {
+    "doc_count": 40,
+    "media_size": 14496729600,
+    "duration": 144000,
+    "duration_str": "40:00:00"
+  }
+}
+```
+
+<ResponseField name="doc_count" type="integer">
+  Total number of archived videos.
+</ResponseField>
+
+<ResponseField name="media_size" type="integer">
+  Total disk usage in bytes across all videos.
+</ResponseField>
+
+<ResponseField name="duration" type="integer">
+  Total video duration in seconds.
+</ResponseField>
+
+<ResponseField name="duration_str" type="string">
+  Human-readable total duration.
+</ResponseField>
+
+<ResponseField name="type_videos" type="object">
+  Aggregate stats for regular videos only.
+</ResponseField>
+
+<ResponseField name="type_shorts" type="object">
+  Aggregate stats for YouTube Shorts only.
+</ResponseField>
+
+<ResponseField name="type_streams" type="object">
+  Aggregate stats for live streams only.
+</ResponseField>
+
+<ResponseField name="active_true" type="object">
+  Aggregate stats for videos still active on YouTube.
+</ResponseField>
+
+<ResponseField name="active_false" type="object">
+  Aggregate stats for videos no longer available on YouTube.
+</ResponseField>
+
+Each `type_*` and `active_*` sub-object has the same fields: `doc_count`, `media_size`, `duration`, `duration_str`.
+
+---
+
+## Channel statistics
+
+`GET /api/stats/channel/`
+
+Returns aggregate statistics about indexed channels.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/channel/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/channel/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/channel/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "doc_count": 42,
+  "active_true": 38,
+  "active_false": 4,
+  "subscribed_true": 30,
+  "subscribed_false": 12
+}
+```
+
+<ResponseField name="doc_count" type="integer">
+  Total number of indexed channels.
+</ResponseField>
+
+<ResponseField name="active_true" type="integer">
+  Number of channels that are still active on YouTube.
+</ResponseField>
+
+<ResponseField name="active_false" type="integer">
+  Number of channels that are no longer active on YouTube.
+</ResponseField>
+
+<ResponseField name="subscribed_true" type="integer">
+  Number of channels you are subscribed to.
+</ResponseField>
+
+<ResponseField name="subscribed_false" type="integer">
+  Number of channels you are not subscribed to.
+</ResponseField>
+
+---
+
+## Playlist statistics
+
+`GET /api/stats/playlist/`
+
+Returns aggregate statistics about indexed playlists.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/playlist/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/playlist/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/playlist/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "doc_count": 15,
+  "active_true": 13,
+  "active_false": 2,
+  "subscribed_true": 10,
+  "subscribed_false": 5
+}
+```
+
+<ResponseField name="doc_count" type="integer">
+  Total number of indexed playlists.
+</ResponseField>
+
+<ResponseField name="active_true" type="integer">
+  Number of playlists still active on YouTube.
+</ResponseField>
+
+<ResponseField name="active_false" type="integer">
+  Number of playlists no longer active.
+</ResponseField>
+
+<ResponseField name="subscribed_true" type="integer">
+  Number of playlists you are subscribed to.
+</ResponseField>
+
+<ResponseField name="subscribed_false" type="integer">
+  Number of playlists you are not subscribed to.
+</ResponseField>
+
+---
+
+## Download queue statistics
+
+`GET /api/stats/download/`
+
+Returns counts of items currently in the download queue, broken down by status and video type.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/download/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/download/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/download/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "pending": 24,
+  "ignore": 5,
+  "pending_videos": 18,
+  "pending_shorts": 4,
+  "pending_streams": 2
+}
+```
+
+<ResponseField name="pending" type="integer">
+  Total number of items with `pending` status.
+</ResponseField>
+
+<ResponseField name="ignore" type="integer">
+  Total number of items with `ignore` status.
+</ResponseField>
+
+<ResponseField name="pending_videos" type="integer">
+  Pending regular videos.
+</ResponseField>
+
+<ResponseField name="pending_shorts" type="integer">
+  Pending YouTube Shorts.
+</ResponseField>
+
+<ResponseField name="pending_streams" type="integer">
+  Pending live streams.
+</ResponseField>
+
+---
+
+## Watch progress statistics
+
+`GET /api/stats/watch/`
+
+Returns aggregate watch progress statistics across your entire library.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/watch/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/watch/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/watch/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "total": {
+    "duration": 5184000,
+    "duration_str": "1440:00:00",
+    "items": 1420
+  },
+  "watched": {
+    "duration": 2592000,
+    "duration_str": "720:00:00",
+    "progress": 0.5,
+    "items": 710
+  },
+  "unwatched": {
+    "duration": 2592000,
+    "duration_str": "720:00:00",
+    "progress": 0.5,
+    "items": 710
+  }
+}
+```
+
+<ResponseField name="total" type="object">
+  Totals across all videos.
+
+  <Expandable title="fields">
+    <ResponseField name="duration" type="integer">Total duration in seconds.</ResponseField>
+    <ResponseField name="duration_str" type="string">Human-readable duration.</ResponseField>
+    <ResponseField name="items" type="integer">Total video count.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="watched" type="object">
+  Stats for videos marked as watched.
+
+  <Expandable title="fields">
+    <ResponseField name="duration" type="integer">Total watched duration in seconds.</ResponseField>
+    <ResponseField name="duration_str" type="string">Human-readable watched duration.</ResponseField>
+    <ResponseField name="progress" type="float">Fraction of total library watched (0.0–1.0).</ResponseField>
+    <ResponseField name="items" type="integer">Number of watched videos.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="unwatched" type="object">
+  Stats for videos not yet watched. Same fields as `watched`.
+</ResponseField>
+
+---
+
+## Download history
+
+`GET /api/stats/downloadhist/`
+
+Returns a histogram of downloads per day for the recent past.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/stats/downloadhist/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/downloadhist/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/downloadhist/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK` — array of daily download buckets:
+
+```json
+[
+  {
+    "date": "2024-01-16",
+    "count": 12,
+    "media_size": 6291456000
+  },
+  {
+    "date": "2024-01-15",
+    "count": 8,
+    "media_size": 4194304000
+  }
+]
+```
+
+<ResponseField name="date" type="string">
+  Date in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="count" type="integer">
+  Number of videos downloaded on that date.
+</ResponseField>
+
+<ResponseField name="media_size" type="integer">
+  Total bytes downloaded on that date.
+</ResponseField>
+
+---
+
+## Biggest channels
+
+`GET /api/stats/biggestchannels/`
+
+Returns the largest channels in your library, ranked by a chosen metric.
+
+<ParamField query="order" type="string">
+  Ranking metric. One of:
+  - `doc_count` (default) — by number of videos
+  - `duration` — by total video duration
+  - `media_size` — by total disk usage
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/stats/biggestchannels/?order=media_size" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/stats/biggestchannels/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"order": "media_size"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/stats/biggestchannels/?order=media_size",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK` — array of channel summary objects:
+
+```json
+[
+  {
+    "id": "UCxxxxxx",
+    "name": "Example Channel",
+    "doc_count": 142,
+    "duration": 511200,
+    "duration_str": "142:00:00",
+    "media_size": 85899345920
+  },
+  {
+    "id": "UCyyyyyy",
+    "name": "Another Channel",
+    "doc_count": 98,
+    "duration": 352800,
+    "duration_str": "98:00:00",
+    "media_size": 53687091200
+  }
+]
+```
+
+<ResponseField name="id" type="string">
+  YouTube channel ID.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Channel name.
+</ResponseField>
+
+<ResponseField name="doc_count" type="integer">
+  Number of archived videos.
+</ResponseField>
+
+<ResponseField name="duration" type="integer">
+  Total duration in seconds.
+</ResponseField>
+
+<ResponseField name="duration_str" type="string">
+  Human-readable total duration.
+</ResponseField>
+
+<ResponseField name="media_size" type="integer">
+  Total disk usage in bytes.
+</ResponseField>
+
+---
+
+## Health check
+
+`GET /api/health/`
+
+Returns `200 OK` with the body `"OK"`. No authentication required. Use this for container health probes.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/health/
+```
+
+```python Python
+import requests
+
+response = requests.get("http://your-host:8000/api/health/")
+print(response.text)  # "OK"
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/health/");
+const text = await response.text();
+console.log(text); // "OK"
+```
+
+</CodeGroup>
+
+---
+
+## Ping
+
+`GET /api/ping/`
+
+Verifies authentication and returns the current user and application version.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/ping/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/ping/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/ping/", {
+  headers: { "Authorization": "Token <your-token>" },
+});
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "response": "pong",
+  "user": 1,
+  "version": "0.4.10",
+  "ta_update": false
+}
+```
+
+<ResponseField name="response" type="string">
+  Always `"pong"`.
+</ResponseField>
+
+<ResponseField name="user" type="integer">
+  The authenticated user's ID.
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  Current Tube Archivist version string.
+</ResponseField>
+
+<ResponseField name="ta_update" type="boolean">
+  Whether a newer version of Tube Archivist is available.
+</ResponseField>

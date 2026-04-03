@@ -1,0 +1,546 @@
+---
+title: 'Download queue'
+description: 'Endpoints for managing the Tube Archivist download queue.'
+---
+
+The download queue tracks videos that are pending download, being ignored, or actively downloading. All download endpoints require admin privileges.
+
+---
+
+## List queue items
+
+`GET /api/download/`
+
+Returns a paginated list of items in the download queue, sorted by priority then timestamp.
+
+<ParamField query="filter" type="string">
+  Filter by status. One of `pending` or `ignore`.
+</ParamField>
+
+<ParamField query="channel" type="string">
+  Filter by channel ID.
+</ParamField>
+
+<ParamField query="vid_type" type="string">
+  Filter by video type. One of `videos`, `streams`, or `shorts`.
+</ParamField>
+
+<ParamField query="q" type="string">
+  Search by title prefix.
+</ParamField>
+
+<ParamField query="error" type="boolean">
+  If `true`, return only items with an error message. If `false`, return only items without errors.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Page number (zero-indexed).
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/download/?filter=pending&page=0" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/download/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"filter": "pending", "page": 0},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/?filter=pending&page=0",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "youtube_id": "dQw4w9WgXcQ",
+      "title": "Example Video",
+      "channel_id": "UCxxxxxx",
+      "channel_name": "Example Channel",
+      "channel_indexed": true,
+      "vid_type": "videos",
+      "status": "pending",
+      "published": "2024-01-15",
+      "duration": "3:32",
+      "timestamp": 1705363200,
+      "vid_thumb_url": "/media/example/thumb.jpg",
+      "auto_start": false,
+      "message": null
+    }
+  ],
+  "paginate": {
+    "page_size": 32,
+    "page_from": 0,
+    "prev_pages": null,
+    "next_pages": null,
+    "current_page": 0
+  }
+}
+```
+
+### Queue item fields
+
+<ResponseField name="youtube_id" type="string">
+  YouTube video ID.
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Video title.
+</ResponseField>
+
+<ResponseField name="channel_id" type="string">
+  YouTube channel ID.
+</ResponseField>
+
+<ResponseField name="channel_name" type="string">
+  Channel name.
+</ResponseField>
+
+<ResponseField name="channel_indexed" type="boolean">
+  Whether the channel is indexed in Tube Archivist.
+</ResponseField>
+
+<ResponseField name="vid_type" type="string">
+  One of `videos`, `streams`, or `shorts`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  One of `pending` or `ignore`.
+</ResponseField>
+
+<ResponseField name="published" type="string">
+  Publication date string.
+</ResponseField>
+
+<ResponseField name="duration" type="string">
+  Human-readable duration.
+</ResponseField>
+
+<ResponseField name="timestamp" type="integer">
+  Unix timestamp when the item was added to the queue.
+</ResponseField>
+
+<ResponseField name="vid_thumb_url" type="string">
+  Thumbnail URL.
+</ResponseField>
+
+<ResponseField name="auto_start" type="boolean">
+  Whether this item should download automatically.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error message if the download failed.
+</ResponseField>
+
+---
+
+## Add items to the queue
+
+`POST /api/download/`
+
+Adds one or more videos (by YouTube ID) to the download queue and optionally starts downloading immediately.
+
+<ParamField query="autostart" type="boolean">
+  If `true`, begin downloading immediately after queuing.
+</ParamField>
+
+<ParamField query="flat" type="boolean">
+  If `true`, add items without fetching full metadata (faster for large lists).
+</ParamField>
+
+<ParamField query="force" type="boolean">
+  If `true`, re-add videos that are already in the queue.
+</ParamField>
+
+<ParamField body="data" type="array" required>
+  Array of items to add.
+
+  <Expandable title="data item fields">
+    <ParamField body="youtube_id" type="string" required>
+      YouTube video ID, channel URL, or playlist URL to add.
+    </ParamField>
+    <ParamField body="status" type="string" required>
+      Initial status. Use `pending` to queue for download, or `ignore-force` to mark as ignored even if it already exists.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST "http://your-host:8000/api/download/?autostart=false" \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {"youtube_id": "dQw4w9WgXcQ", "status": "pending"}
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/download/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"autostart": False},
+    json={"data": [{"youtube_id": "dQw4w9WgXcQ", "status": "pending"}]},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/?autostart=false",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Token <your-token>",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      data: [{ youtube_id: "dQw4w9WgXcQ", status: "pending" }],
+    }),
+  }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "message": "add to queue task started",
+  "task_id": "c9a1b2d3-..."
+}
+```
+
+---
+
+## Bulk update queue items
+
+`PATCH /api/download/`
+
+Updates the status of multiple queue items matching a filter at once.
+
+<ParamField query="filter" type="string" required>
+  Which items to update. One of `pending`, `ignore`, or `priority`.
+</ParamField>
+
+<ParamField query="channel" type="string">
+  Limit the update to a specific channel ID.
+</ParamField>
+
+<ParamField query="vid_type" type="string">
+  Limit the update to a specific video type (`videos`, `streams`, `shorts`).
+</ParamField>
+
+<ParamField query="error" type="boolean">
+  Limit to items with (`true`) or without (`false`) errors.
+</ParamField>
+
+<ParamField body="status" type="string" required>
+  New status to apply. One of `pending`, `ignore`, `priority`, or `clear_error`.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+# Move all ignored items back to pending
+curl -X PATCH "http://your-host:8000/api/download/?filter=ignore" \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "pending"}'
+```
+
+```python Python
+import requests
+
+response = requests.patch(
+    "http://your-host:8000/api/download/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"filter": "ignore"},
+    json={"status": "pending"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/?filter=ignore",
+  {
+    method: "PATCH",
+    headers: {
+      "Authorization": "Token <your-token>",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: "pending" }),
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content`. If the new status is `priority`, the download task starts immediately.
+
+---
+
+## Bulk delete queue items
+
+`DELETE /api/download/`
+
+Permanently removes queue items matching a filter.
+
+<ParamField query="filter" type="string" required>
+  Which items to delete. One of `pending` or `ignore`.
+</ParamField>
+
+<ParamField query="channel" type="string">
+  Limit deletion to a specific channel ID.
+</ParamField>
+
+<ParamField query="vid_type" type="string">
+  Limit deletion to a specific video type.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+# Clear all ignored items
+curl -X DELETE "http://your-host:8000/api/download/?filter=ignore" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/download/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"filter": "ignore"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/?filter=ignore",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content`.
+
+---
+
+## Get a queue item
+
+`GET /api/download/<video_id>/`
+
+Returns the queue entry for a specific video.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/download/dQw4w9WgXcQ/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the queue item object, or `404` if not found.
+
+---
+
+## Update a queue item
+
+`POST /api/download/<video_id>/`
+
+Changes the status of a single queue item.
+
+<ParamField body="status" type="string" required>
+  New status. One of:
+  - `pending` — move back to the download queue
+  - `ignore` — mark as ignored
+  - `ignore-force` — ignore even if the video was already downloaded
+  - `priority` — prioritize and start downloading immediately
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+# Prioritize a video
+curl -X POST http://your-host:8000/api/download/dQw4w9WgXcQ/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "priority"}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"status": "priority"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Token <your-token>",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: "priority" }),
+  }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with `{"status": "<new-status>"}`, `400` for invalid status, `404` if not found.
+
+---
+
+## Delete a queue item
+
+`DELETE /api/download/<video_id>/`
+
+Removes a single video from the download queue.
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE http://your-host:8000/api/download/dQw4w9WgXcQ/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/dQw4w9WgXcQ/",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content`.
+
+---
+
+## Get queue aggregations
+
+`GET /api/download/aggs/`
+
+Returns per-channel download counts aggregated from the queue.
+
+<ParamField query="filter" type="string" required>
+  Which status group to aggregate. One of `pending` or `ignore`.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/download/aggs/?filter=pending" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/download/aggs/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"filter": "pending"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/download/aggs/?filter=pending",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "doc_count_error_upper_bound": 0,
+  "sum_other_doc_count": 0,
+  "buckets": [
+    {
+      "key": ["Example Channel", "UCxxxxxx"],
+      "key_as_string": "Example Channel|UCxxxxxx",
+      "doc_count": 12
+    }
+  ]
+}
+```

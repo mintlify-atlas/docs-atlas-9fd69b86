@@ -1,0 +1,138 @@
+---
+title: "Import and backup"
+description: "Scan your filesystem for existing videos, manually import offline media, and back up or restore your Tube Archivist index."
+---
+
+Tube Archivist provides several ways to protect your data and bring existing media into the archive. This page covers the filesystem scanner, manual JSON import, zip backups, and Elasticsearch snapshots.
+
+## Filesystem scan
+
+If you have already-downloaded video files on disk that are not yet in the Tube Archivist index, the filesystem scanner will detect them and add them to your archive.
+
+<Steps>
+  <Step title="Place files in the media directory">
+    Put the video files into the Tube Archivist media directory, organized into channel subfolders. The expected layout is:
+
+    ```text
+    /youtube/<channel_id>/<video_id>.mp4
+    /youtube/<channel_id>/<video_id>.jpg
+    /youtube/<channel_id>/<video_id>.info.json
+    ```
+
+    The `.info.json` file is required for Tube Archivist to extract metadata. Generate one with yt-dlp using `--write-info-json` if it is missing.
+  </Step>
+  <Step title="Start the scan">
+    Go to **Settings > Actions** and click **Rescan filesystem**. Tube Archivist walks the media directory, identifies any video files not already in the index, and adds them.
+  </Step>
+</Steps>
+
+<Note>
+  The filesystem scan only adds videos that have a corresponding `.info.json` file. Files without metadata are skipped. You can generate missing info files using the yt-dlp `--write-info-json` flag.
+</Note>
+
+## Manual import
+
+Manual import lets you import a video and its metadata from a `.info.json` file without downloading anything from YouTube. This is useful for offline imports or when you have videos that are no longer available on YouTube.
+
+**Required files per video:**
+
+| File | Required | Description |
+|---|---|---|
+| `<video_id>.mp4` (or `.mkv`, `.webm`) | Yes | The video media file |
+| `<video_id>.info.json` | Yes | yt-dlp metadata JSON |
+| `<video_id>.jpg` | No | Thumbnail image |
+| `<video_id>.<lang>.vtt` | No | Subtitle file |
+
+<Steps>
+  <Step title="Place files in the import folder">
+    Copy the video and its `.info.json` file into the Tube Archivist import directory:
+
+    ```text
+    /youtube/import/
+    ```
+  </Step>
+  <Step title="Start the import">
+    Go to **Settings > Actions** and click **Manual import**. Tube Archivist reads each `.info.json` file, creates the video record in Elasticsearch, moves the media file to the correct location, and indexes any associated subtitles.
+  </Step>
+</Steps>
+
+<Tip>
+  You can generate `.info.json` files for existing video files using yt-dlp:
+
+  ```bash
+  yt-dlp --skip-download --write-info-json "https://www.youtube.com/watch?v=<video_id>"
+  ```
+</Tip>
+
+## Backup
+
+Tube Archivist backups are zip archives that contain a JSON export of your Elasticsearch data. They capture your video metadata, channel subscriptions, playlist definitions, download history, comments, and subtitles — everything in the index. Media files on disk are **not** included in zip backups.
+
+### Creating a backup
+
+Go to **Settings > Actions** and click **Create backup**. Tube Archivist runs a background task that exports all Elasticsearch indexes to JSON and packages them into a timestamped zip file stored inside the container at:
+
+```text
+/cache/backup/
+```
+
+You can list and download available backup files from the same settings page.
+
+### Restoring from a backup
+
+<Steps>
+  <Step title="Locate the backup file">
+    The backup file must be present in `/cache/backup/` on the container. If you are restoring to a fresh instance, copy the zip file there first.
+  </Step>
+  <Step title="Start the restore">
+    Go to **Settings > Actions**, find the backup file in the list, and click **Restore**. Confirm the action when prompted.
+  </Step>
+  <Step title="Wait for completion">
+    The restore task re-imports all JSON data into Elasticsearch. Depending on the size of your archive, this may take several minutes. A notification shows progress.
+  </Step>
+</Steps>
+
+<Warning>
+  Restoring a backup overwrites the current Elasticsearch index. Any data added after the backup was created will be lost. Ensure your media files on disk are intact — restoring a backup does not re-download video files.
+</Warning>
+
+**What is included in a zip backup:**
+
+| Included | Not included |
+|---|---|
+| Video metadata (titles, descriptions, dates) | Video media files (`.mp4`, `.mkv`, etc.) |
+| Channel subscriptions and metadata | Thumbnails cached on disk |
+| Playlist definitions and entries | yt-dlp cookies |
+| Download queue | Application configuration (environment variables) |
+| Comments and subtitles | |
+
+## Elasticsearch snapshots
+
+Elasticsearch snapshots are a lower-level backup mechanism that captures the raw Elasticsearch index data. Unlike zip backups, snapshots are faster and are stored directly in the Elasticsearch data directory. They are better suited for large archives or scheduled automated backups.
+
+### Creating a snapshot
+
+Go to **Settings > Actions** and click **Create snapshot**. Tube Archivist calls the Elasticsearch snapshot API and creates a new snapshot in the configured snapshot repository.
+
+<Note>
+  Snapshots require the `ES_SNAPSHOT_DIR` environment variable to be set and writable by Elasticsearch. See the [environment variables reference](/installation/env-vars) for details.
+</Note>
+
+### Restoring a snapshot
+
+Find the snapshot in the list under **Settings > Actions > Snapshots** and click **Restore**. Tube Archivist calls the Elasticsearch restore API. The application may be unavailable briefly during the restore.
+
+### Deleting a snapshot
+
+Click **Delete** next to any snapshot in the list to remove it from the snapshot repository.
+
+## Comparison: zip backup vs. Elasticsearch snapshot
+
+| | Zip backup | Elasticsearch snapshot |
+|---|---|---|
+| **Speed** | Slower (JSON export/import) | Faster (native index format) |
+| **Portability** | High — JSON is readable and portable | Lower — tied to Elasticsearch version |
+| **Storage location** | `/cache/backup/` | Elasticsearch snapshot repository |
+| **Media files included** | No | No |
+| **Suitable for scheduled automation** | Yes | Yes (preferred for large archives) |
+| **Restore requires running Tube Archivist** | Yes | Yes |

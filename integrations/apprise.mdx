@@ -1,0 +1,115 @@
+---
+title: "Apprise notifications"
+description: "Send notifications to Slack, Discord, Telegram, email, and 80+ other services when Tube Archivist tasks complete, using the Apprise notification library."
+---
+
+Tube Archivist uses [Apprise](https://github.com/caronc/apprise) to send notifications when background tasks finish. Apprise supports over 80 notification services — including Discord, Slack, Telegram, NTFY, Gotify, and email — all configured through a single URL scheme.
+
+## How it works
+
+After each background task completes (successfully or with an error), Tube Archivist calls Apprise with the task name and result. Apprise then delivers the notification to every URL you have registered for that task.
+
+Notification delivery is handled in `task/src/notify.py`. The message title follows the format:
+
+```
+[TA] <Task title> process ended with <status>
+```
+
+The message body contains the task result — for example, `"downloaded 3 video(s)."`.
+
+## Configuring notifications
+
+<Steps>
+  <Step title="Open the scheduling settings">
+    In Tube Archivist, navigate to **Settings → Scheduling**.
+  </Step>
+  <Step title="Find the Notifications section">
+    Scroll to the **Notifications** section. You will see a list of available tasks, each with an input field for Apprise URLs.
+  </Step>
+  <Step title="Add an Apprise URL">
+    Paste an Apprise-formatted URL into the input field for the task you want notifications for. See the URL examples below.
+  </Step>
+  <Step title="Save">
+    Click **Save** (or the add button next to the field). The URL is stored and will be used the next time that task runs.
+  </Step>
+  <Step title="Test the notification">
+    Click the **Test** button next to a saved URL to send a test notification immediately without running the full task.
+  </Step>
+</Steps>
+
+## Notifiable tasks
+
+You can attach notification URLs to any of the following tasks:
+
+| Task | Triggered by |
+|------|-------------|
+| Rescan your Subscriptions | Scheduled or manual subscription scan |
+| Downloading | Download queue run |
+| Add to download queue | Adding items to the pending queue |
+| Reindex Documents | Metadata reindex |
+| Manual video import | Import folder scan |
+| Index Backup | Scheduled or manual backup |
+| Restore Backup | Backup restore |
+| Rescan your Filesystem | Filesystem scan |
+| Check your Thumbnails | Thumbnail validation |
+| Sync Metadata to Media Files | Metadata re-embed |
+
+## Apprise URL examples
+
+Refer to the [Apprise documentation](https://github.com/caronc/apprise) for the full list of supported services and URL formats.
+
+<CodeGroup>
+
+```text Discord
+https://discordapp.com/api/webhooks/{webhook.id}/{webhook.token}
+```
+
+```text Slack
+slack://TokenA/TokenB/TokenC/
+```
+
+```text Telegram
+tgram://{bot_token}/{chat_id}/
+```
+
+```text NTFY
+ntfy://{hostname}/{topic}
+```
+
+```text Gotify
+gotify://{hostname}/{token}
+```
+
+```text Email (SMTP)
+mailto://user:password@gmail.com
+```
+
+</CodeGroup>
+
+<Tip>
+  Use the **Test** button in the UI after adding a URL to confirm delivery before relying on it for real task notifications.
+</Tip>
+
+<Warning>
+  Notification URLs may contain tokens or passwords. Treat them like credentials — do not share them or commit them to version control.
+</Warning>
+
+## Removing a notification URL
+
+In **Settings → Scheduling → Notifications**, click the remove or delete button next to any saved URL. If all URLs for a task are removed, notifications for that task stop.
+
+## Debugging notification failures
+
+Enable debug logging by setting `DJANGO_DEBUG=True` in your environment. Apprise log output is routed to the console at `DEBUG` level, so you can see exactly what Apprise sends and any errors it encounters:
+
+```yaml
+# docker-compose.yml
+environment:
+  - DJANGO_DEBUG=True
+```
+
+Then check your container logs:
+
+```bash
+docker logs tubearchivist
+```

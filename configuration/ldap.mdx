@@ -1,0 +1,245 @@
+---
+title: "LDAP authentication"
+description: "Authenticate Tube Archivist users against an LDAP directory server such as OpenLDAP, Active Directory, or Authentik."
+---
+
+Tube Archivist can delegate authentication to an LDAP directory server using [django-auth-ldap](https://django-auth-ldap.readthedocs.io/). When a user logs in, their credentials are verified against the LDAP server. If valid, a local Tube Archivist account is created or updated automatically.
+
+## Prerequisites
+
+- A running LDAP server (OpenLDAP, Active Directory, FreeIPA, Authentik LDAP outpost, Lldap, etc.)
+- A bind account (service account) with read access to the user tree
+- The Tube Archivist container must be able to reach the LDAP server over the network
+
+---
+
+## Quick setup
+
+<Steps>
+  <Step title="Set TA_LOGIN_AUTH_MODE">
+    Choose the authentication mode that suits your setup:
+
+    | Value | Behaviour |
+    |-------|-----------|
+    | `ldap` | LDAP only — local password login is disabled |
+    | `ldap_local` | LDAP first, fall back to local password database |
+
+    ```yaml docker-compose.yml
+    environment:
+      TA_LOGIN_AUTH_MODE: ldap
+    ```
+  </Step>
+  <Step title="Configure the LDAP connection">
+    Add the required environment variables to your `docker-compose.yml`:
+
+    ```yaml docker-compose.yml
+    environment:
+      TA_LOGIN_AUTH_MODE: ldap
+      TA_LDAP_SERVER_URI: ldap://ldap.example.com:389
+      TA_LDAP_BIND_DN: cn=tubearchivist,ou=services,dc=example,dc=com
+      TA_LDAP_BIND_PASSWORD: secret
+      TA_LDAP_USER_BASE: ou=users,dc=example,dc=com
+      TA_LDAP_USER_FILTER: "(objectClass=person)"
+    ```
+  </Step>
+  <Step title="Restart the container">
+    ```bash
+    docker compose down && docker compose up -d
+    ```
+  </Step>
+  <Step title="Verify login">
+    Open the Tube Archivist login page and sign in with an LDAP user account. A local account is created automatically on first login.
+  </Step>
+</Steps>
+
+---
+
+## Environment variables
+
+### Required
+
+<ParamField body="TA_LOGIN_AUTH_MODE" type="string">
+  Sets the authentication backend order. Must be `ldap` or `ldap_local` to activate LDAP.
+
+  - `ldap` — LDAP backend only
+  - `ldap_local` — LDAP backend, then local password database as fallback
+</ParamField>
+
+<ParamField body="TA_LDAP_SERVER_URI" type="string">
+  URI of the LDAP server including protocol and port.
+
+  ```text Examples
+  ldap://ldap.example.com:389
+  ldaps://ldap.example.com:636
+  ```
+</ParamField>
+
+<ParamField body="TA_LDAP_BIND_DN" type="string">
+  Distinguished Name (DN) of the service account used to search the directory.
+
+  ```text Example
+  cn=tubearchivist,ou=services,dc=example,dc=com
+  ```
+</ParamField>
+
+<ParamField body="TA_LDAP_BIND_PASSWORD" type="string">
+  Password for the bind account.
+</ParamField>
+
+<ParamField body="TA_LDAP_USER_BASE" type="string">
+  Base DN to search for user accounts.
+
+  ```text Example
+  ou=users,dc=example,dc=com
+  ```
+</ParamField>
+
+<ParamField body="TA_LDAP_USER_FILTER" type="string">
+  Additional LDAP filter appended to the user search query. Must be a valid LDAP filter fragment.
+
+  ```text Examples
+  (objectClass=person)
+  (memberOf=cn=tubearchivist-users,ou=groups,dc=example,dc=com)
+  ```
+</ParamField>
+
+### User attribute mapping
+
+These variables control which LDAP attributes are mapped to Tube Archivist user fields. Each field has multiple accepted aliases for compatibility with different directory schemas.
+
+<ParamField body="TA_LDAP_USER_ATTR_MAP_USERNAME" type="string" default="uid">
+  LDAP attribute to use as the username.
+  Alias: `TA_LDAP_USER_ATTR_MAP_UID`
+
+  | Directory type | Typical attribute |
+  |----------------|------------------|
+  | OpenLDAP | `uid` |
+  | Active Directory | `sAMAccountName` |
+</ParamField>
+
+<ParamField body="TA_LDAP_USER_ATTR_MAP_PERSONALNAME" type="string" default="givenName">
+  LDAP attribute for the user's first/given name.
+  Aliases: `TA_LDAP_USER_ATTR_MAP_FIRSTNAME`, `TA_LDAP_USER_ATTR_MAP_GIVENNAME`
+</ParamField>
+
+<ParamField body="TA_LDAP_USER_ATTR_MAP_SURNAME" type="string" default="sn">
+  LDAP attribute for the user's last/family name.
+  Aliases: `TA_LDAP_USER_ATTR_MAP_LASTNAME`, `TA_LDAP_USER_ATTR_MAP_FAMILYNAME`
+</ParamField>
+
+<ParamField body="TA_LDAP_USER_ATTR_MAP_EMAIL" type="string" default="mail">
+  LDAP attribute for the user's email address.
+  Alias: `TA_LDAP_USER_ATTR_MAP_MAIL`
+</ParamField>
+
+### Optional
+
+<ParamField body="TA_LDAP_DISABLE_CERT_CHECK" type="string">
+  Set to any truthy value (e.g., `true`) to disable TLS certificate verification. Useful for self-signed certificates in internal environments.
+
+  <Warning>
+    Disabling certificate verification exposes the LDAP connection to man-in-the-middle attacks. Only use this in trusted networks or during development.
+  </Warning>
+</ParamField>
+
+<ParamField body="TA_LDAP_PROMOTE_USERNAMES_TO_SUPERUSER" type="string">
+  Comma-separated list of LDAP usernames that are automatically granted superuser (admin) permissions on login.
+
+  ```text Example
+  alice,bob
+  ```
+</ParamField>
+
+<ParamField body="TA_LDAP_PROMOTE_USERNAMES_TO_STAFF" type="string">
+  Comma-separated list of LDAP usernames that are automatically granted staff permissions on login.
+</ParamField>
+
+---
+
+## How user accounts are created
+
+When a user logs in for the first time via LDAP:
+
+1. Tube Archivist searches the LDAP tree starting at `TA_LDAP_USER_BASE` using the filter `(&(<username_attr>=<entered_username>)<TA_LDAP_USER_FILTER>)`.
+2. If a match is found, the password is verified against the LDAP server.
+3. A local Django user account is created (or updated) using the mapped attributes (`username`, `first_name`, `last_name`, `email`).
+4. If the username appears in `TA_LDAP_PROMOTE_USERNAMES_TO_SUPERUSER` or `TA_LDAP_PROMOTE_USERNAMES_TO_STAFF`, the account's permissions are elevated.
+
+On subsequent logins, the local account is updated with any changes from the LDAP directory.
+
+<Note>
+  Passwords are **never** stored locally for LDAP-managed accounts. Authentication always defers to the LDAP server.
+</Note>
+
+---
+
+## Complete configuration examples
+
+<CodeGroup>
+
+```yaml OpenLDAP
+environment:
+  TA_LOGIN_AUTH_MODE: ldap
+  TA_LDAP_SERVER_URI: ldap://openldap:389
+  TA_LDAP_BIND_DN: cn=admin,dc=example,dc=com
+  TA_LDAP_BIND_PASSWORD: adminpassword
+  TA_LDAP_USER_BASE: ou=people,dc=example,dc=com
+  TA_LDAP_USER_FILTER: "(objectClass=inetOrgPerson)"
+  TA_LDAP_USER_ATTR_MAP_USERNAME: uid
+  TA_LDAP_USER_ATTR_MAP_EMAIL: mail
+  TA_LDAP_PROMOTE_USERNAMES_TO_SUPERUSER: alice
+```
+
+```yaml Active Directory
+environment:
+  TA_LOGIN_AUTH_MODE: ldap
+  TA_LDAP_SERVER_URI: ldap://dc.corp.example.com:389
+  TA_LDAP_BIND_DN: CN=svc-tubearchivist,OU=Service Accounts,DC=corp,DC=example,DC=com
+  TA_LDAP_BIND_PASSWORD: ServiceAccountPassword
+  TA_LDAP_USER_BASE: OU=Users,DC=corp,DC=example,DC=com
+  TA_LDAP_USER_FILTER: "(objectClass=person)"
+  TA_LDAP_USER_ATTR_MAP_USERNAME: sAMAccountName
+  TA_LDAP_USER_ATTR_MAP_PERSONALNAME: givenName
+  TA_LDAP_USER_ATTR_MAP_SURNAME: sn
+  TA_LDAP_USER_ATTR_MAP_EMAIL: mail
+```
+
+```yaml LDAP + local fallback
+environment:
+  TA_LOGIN_AUTH_MODE: ldap_local
+  TA_LDAP_SERVER_URI: ldap://ldap.example.com:389
+  TA_LDAP_BIND_DN: cn=tubearchivist,ou=services,dc=example,dc=com
+  TA_LDAP_BIND_PASSWORD: secret
+  TA_LDAP_USER_BASE: ou=users,dc=example,dc=com
+  TA_LDAP_USER_FILTER: "(objectClass=person)"
+```
+
+```yaml LDAPS with self-signed certificate
+environment:
+  TA_LOGIN_AUTH_MODE: ldap
+  TA_LDAP_SERVER_URI: ldaps://ldap.example.com:636
+  TA_LDAP_DISABLE_CERT_CHECK: "true"
+  TA_LDAP_BIND_DN: cn=tubearchivist,ou=services,dc=example,dc=com
+  TA_LDAP_BIND_PASSWORD: secret
+  TA_LDAP_USER_BASE: ou=users,dc=example,dc=com
+  TA_LDAP_USER_FILTER: "(objectClass=person)"
+```
+
+</CodeGroup>
+
+---
+
+## Legacy activation method
+
+Prior to `TA_LOGIN_AUTH_MODE`, LDAP was activated with the `TA_LDAP=true` environment variable. This still works but is considered legacy. The `TA_LDAP` flag activates LDAP-only mode, equivalent to `TA_LOGIN_AUTH_MODE=ldap`.
+
+```yaml Legacy (still supported)
+environment:
+  TA_LDAP: "true"
+  TA_LDAP_SERVER_URI: ldap://ldap.example.com:389
+  # ... other TA_LDAP_* variables
+```
+
+<Tip>
+  Migrate to `TA_LOGIN_AUTH_MODE` for clarity and to access the `ldap_local` fallback mode.
+</Tip>

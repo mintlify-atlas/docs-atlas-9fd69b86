@@ -1,0 +1,116 @@
+---
+title: "FAQ"
+description: "Answers to common questions about installing, running, and using Tube Archivist."
+---
+
+<AccordionGroup>
+
+  <Accordion title="What are the minimum system requirements?">
+    Tube Archivist runs as a Docker Compose stack consisting of three containers: the main application, Elasticsearch, and Redis.
+
+    | Resource | Minimum | Recommended |
+    |----------|---------|-------------|
+    | RAM | 2 GB | 4 GB+ |
+    | CPU | Dual core, 4 threads | Quad core+ |
+    | Disk | Depends on archive size | SSD for cache and index |
+
+    The 2 GB figure covers a small testing setup. A mid-to-large installation benefits from 4 GB or more, mainly due to Elasticsearch's memory usage.
+
+    Docker is required. Tube Archivist does not run outside of Docker.
+  </Accordion>
+
+  <Accordion title="Can Tube Archivist download age-restricted videos?">
+    Tube Archivist uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for all downloads. Any limitation of yt-dlp applies equally here — if yt-dlp cannot download or extract a video for any reason, Tube Archivist cannot either.
+
+    For age-restricted content, you can pass browser cookies to yt-dlp. Enable this in **Settings → Download** by configuring the cookie import option. This allows yt-dlp to use your logged-in YouTube session when downloading.
+  </Accordion>
+
+  <Accordion title="Why can't I play videos in my browser?">
+    Video playback depends on whether your browser supports the codec used in the downloaded file. Not every codec is compatible with every browser.
+
+    To maximize compatibility — particularly with iOS, macOS Safari, and some other browsers — set a compatible **Download Format** string in **Settings → Download** before downloading. For example:
+
+    ```text
+    bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+    ```
+
+    This instructs yt-dlp to prefer H.264 video and AAC audio in an MP4 container, which is broadly supported. Note that this setting only affects videos downloaded after the change — previously downloaded files keep their original format.
+  </Accordion>
+
+  <Accordion title="Does Tube Archivist support audio-only downloads?">
+    Audio-only download is on the [roadmap](https://github.com/tubearchivist/tubearchivist#roadmap) but has not been implemented yet. A podcast mode to serve channels as MP3 streams is also planned.
+
+    At present, Tube Archivist downloads video files only.
+  </Accordion>
+
+  <Accordion title="Can I change where videos are stored?">
+    Yes. Videos are stored in the Docker volume mounted at `/youtube` inside the container. In your `docker-compose.yml`, replace the named `media` volume with a bind mount pointing to any directory on your host:
+
+    ```yaml
+    volumes:
+      - /path/to/your/storage:/youtube
+    ```
+
+    There is no flexibility in how individual media files are named within that directory — Tube Archivist controls the file naming scheme.
+  </Accordion>
+
+  <Accordion title="How do I update Tube Archivist?">
+    Always use the `latest` tag (the default) or a named semantic version tag. To update:
+
+    ```bash
+    docker compose pull
+    docker compose up -d
+    ```
+
+    After updating, check the version number in the footer of the Tube Archivist interface to confirm you are running the expected release.
+
+    **Before every update**, read the release notes on GitHub. Breaking changes — such as new required environment variables — are marked there. The project is tested for updates spanning one or two releases; applying updates at least once per month is recommended.
+  </Accordion>
+
+  <Accordion title="What happens to my videos if I unsubscribe from a channel?">
+    Unsubscribing from a channel does not delete any downloaded videos. Your existing archive is preserved. Tube Archivist simply stops adding new videos from that channel to the download queue during future subscription scans.
+
+    You can re-subscribe at any time and continue downloading new content from where you left off.
+  </Accordion>
+
+  <Accordion title="Why is Elasticsearch using so much memory?">
+    Elasticsearch is memory-intensive by design. In the example `docker-compose.yml`, it is configured with:
+
+    ```yaml
+    - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ```
+
+    This allocates 1 GB of heap to the JVM. For a small personal archive you can reduce this value, but going below 512 MB is not recommended and may cause instability.
+
+    Elasticsearch also requires the host kernel setting `vm.max_map_count` to be at least `262144`. If this is not set, Elasticsearch will fail to start. See the [troubleshooting guide](/troubleshooting) for instructions.
+  </Accordion>
+
+  <Accordion title="Can I run multiple users with different libraries?">
+    Per-user libraries are on the [roadmap](https://github.com/tubearchivist/tubearchivist#roadmap) (`Per user videos/channel/playlists`) but are not yet implemented.
+
+    Tube Archivist does support multiple user accounts with different roles (for example, a read-only role that can browse and play videos but cannot trigger downloads or change settings). User roles were added in v0.3.3.
+  </Accordion>
+
+  <Accordion title="How do I add videos that are already downloaded?">
+    Use the **filesystem scan** or **manual import** feature:
+
+    - **Filesystem scan** (`Settings → Actions → Rescan filesystem`) — scans the `/youtube` media folder for video files that exist on disk but are not yet indexed in Tube Archivist, then indexes them.
+    - **Manual import** — place video files (along with their `.info.json` metadata files) in the `/cache/import/` folder inside the container, then trigger a manual import from **Settings → Actions**. Tube Archivist will move and index them.
+
+    Both methods were implemented to support migrating an existing yt-dlp archive into Tube Archivist.
+  </Accordion>
+
+  <Accordion title="What's the difference between a backup and an Elasticsearch snapshot?">
+    - **Tube Archivist backup** (`Settings → Actions → Backup`) — exports all index data (videos, channels, playlists, settings, download queue) to a ZIP file stored in `/cache/backup/`. This is a portable backup you can restore from the same settings page.
+    - **Elasticsearch snapshot** — a lower-level Elasticsearch mechanism that writes a snapshot of the ES data to `path.repo` (`/usr/share/elasticsearch/data/snapshot` by default). This is useful for disaster recovery at the database level but is separate from the TA backup workflow.
+
+    For most users, the built-in TA backup is sufficient. It captures everything needed to restore your index on a fresh installation.
+  </Accordion>
+
+  <Accordion title="Is there a mobile app?">
+    There is no official mobile app. Tube Archivist's web interface is accessible from any browser, including mobile browsers.
+
+    A community-built client app for Android and Linux phones written in Flutter is available: [WreckingBANG/Self.Tube](https://codeberg.org/WreckingBANG/Self.Tube). This is a third-party project maintained independently from Tube Archivist.
+  </Accordion>
+
+</AccordionGroup>

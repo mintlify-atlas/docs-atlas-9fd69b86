@@ -1,0 +1,88 @@
+---
+title: "Getting started"
+description: "Open the web interface, configure download settings, subscribe to channels, and start building your archive."
+---
+
+After the stack is running and the health check passes, open `http://your-host:8000` in your browser. Follow the steps below to complete the initial setup and start your first download.
+
+<Steps>
+  <Step title="Log in">
+    Navigate to `http://your-host:8000`. You will be redirected to the login page.
+
+    Enter the `TA_USERNAME` and `TA_PASSWORD` values you set in your `docker-compose.yml`, then click **Log in**.
+
+    <Tip>
+      The current version number is displayed in the footer. Check it after any update to confirm you are running the expected release.
+    </Tip>
+  </Step>
+
+  <Step title="Configure download format">
+    Go to **Settings** and locate the **Download Format** field under the Download section.
+
+    By default, Tube Archivist downloads the best available quality. If you plan to play videos in Safari, on iOS, or on macOS, set a compatible format explicitly:
+
+    ```
+    bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+    ```
+
+    This selects H.264 video with AAC audio — the format with the broadest browser and device compatibility.
+
+    <Note>
+      Not every codec is playable in every browser. Test your format selection with a small download before archiving an entire channel.
+    </Note>
+
+    Save your settings before continuing.
+  </Step>
+
+  <Step title="Subscribe to channels">
+    Go to the **Channels** page and search for the YouTube channels you want to archive.
+
+    Click **Subscribe** on any channel to add it to your subscription list. Tube Archivist will use your subscriptions to populate the download queue when you rescan.
+  </Step>
+
+  <Step title="Add videos to the download queue">
+    Go to the **Downloads** page. You have two options:
+
+    - **Rescan subscriptions** — Queries YouTube for new uploads from all subscribed channels and adds them to the queue. Use this to sync your queue with the latest uploads.
+    - **Add to download queue** — Manually add one or more items by pasting YouTube video URLs, channel URLs, or playlist URLs. You can add multiple items at once.
+
+    <Tip>
+      Use **Add to download queue** to download a specific video or backfill an entire channel or playlist without subscribing to it.
+    </Tip>
+  </Step>
+
+  <Step title="Start downloading">
+    Click **Start download** on the Downloads page. Tube Archivist begins downloading the queued items using `yt-dlp`, saves the video files to the `media` volume, and indexes the metadata in Elasticsearch.
+
+    You can monitor progress on the Downloads page. The queue updates in real time as items complete.
+  </Step>
+
+  <Step title="Browse and search your archive">
+    Once downloads complete, your videos appear on the **Home** page.
+
+    - Use the **search bar** at the top to run full-text searches across video titles, descriptions, subtitles, and comments.
+    - Browse by channel or playlist using the sidebar navigation.
+    - Mark videos as watched to keep track of what you have seen.
+
+    <Tip>
+      Set up scheduled tasks in **Settings → Scheduling** to automatically rescan subscriptions and start downloads on a recurring schedule — no manual intervention required.
+    </Tip>
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Application settings" icon="gear" href="/configuration/application-settings">
+    Configure download quality, SponsorBlock integration, comment archiving, and more
+  </Card>
+  <Card title="Scheduling" icon="clock" href="/configuration/scheduling">
+    Automate rescans and downloads with cron-like schedules
+  </Card>
+  <Card title="Downloads" icon="download" href="/usage/downloads">
+    Learn more about managing the download queue and per-channel settings
+  </Card>
+  <Card title="Search" icon="magnifying-glass" href="/usage/search">
+    Advanced search syntax and filtering options
+  </Card>
+</CardGroup>

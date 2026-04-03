@@ -1,0 +1,210 @@
+---
+title: "Forward authentication"
+description: "Delegate authentication to a reverse proxy such as Nginx, Traefik, or Authelia and pass the authenticated username to Tube Archivist via a request header."
+---
+
+Forward authentication (also called header-based or proxy authentication) lets a trusted reverse proxy handle login and pass the authenticated user's identity to Tube Archivist in an HTTP header. Tube Archivist reads the header, creates or updates the local user account automatically, and logs the user in.
+
+This pattern is common with authentication middleware such as Authelia, Authentik, Vouch, and Traefik Forward Auth.
+
+<Warning>
+  When forward authentication is enabled, **any request that reaches Tube Archivist with the username header set is trusted unconditionally**. You must ensure that Tube Archivist is only reachable through the reverse proxy. Never expose the Tube Archivist port directly to untrusted networks.
+</Warning>
+
+---
+
+## How it works
+
+1. The user makes a request to the reverse proxy.
+2. The reverse proxy authenticates the user (via Authelia, Authentik, or another OIDC/OAuth2/LDAP provider).
+3. The reverse proxy injects the authenticated username into a request header (default: `Remote-User`).
+4. Tube Archivist reads the header via `HttpRemoteUserMiddleware`, finds or creates the matching local account, and considers the user logged in.
+
+---
+
+## Quick setup
+
+<Steps>
+  <Step title="Set TA_LOGIN_AUTH_MODE to forwardauth">
+    ```yaml docker-compose.yml
+    environment:
+      TA_LOGIN_AUTH_MODE: forwardauth
+    ```
+  </Step>
+  <Step title="Configure the reverse proxy to inject the username header">
+    By default, Tube Archivist looks for the `Remote-User` HTTP header (Django receives it as `HTTP_REMOTE_USER`). Configure your reverse proxy to set this header to the authenticated username.
+  </Step>
+  <Step title="(Optional) Customize the header name">
+    If your reverse proxy uses a different header name, set `TA_AUTH_PROXY_USERNAME_HEADER` to the Django-format header name (uppercase, spaces replaced with `_`, prefixed with `HTTP_`):
+
+    ```yaml docker-compose.yml
+    environment:
+      TA_AUTH_PROXY_USERNAME_HEADER: HTTP_X_AUTHENTIK_USERNAME
+    ```
+  </Step>
+  <Step title="(Optional) Set a logout URL">
+    When the user clicks **Logout**, Tube Archivist redirects to this URL so the reverse proxy session is also ended:
+
+    ```yaml docker-compose.yml
+    environment:
+      TA_AUTH_PROXY_LOGOUT_URL: https://auth.example.com/logout
+    ```
+  </Step>
+  <Step title="Restart and verify">
+    ```bash
+    docker compose down && docker compose up -d
+    ```
+
+    Access Tube Archivist through the reverse proxy. You should be logged in automatically after the proxy authenticates you.
+  </Step>
+</Steps>
+
+---
+
+## Environment variables
+
+<ParamField body="TA_LOGIN_AUTH_MODE" type="string" default="single">
+  Set to `forwardauth` to enable forward authentication.
+</ParamField>
+
+<ParamField body="TA_ENABLE_AUTH_PROXY" type="string">
+  Legacy activation method (equivalent to `TA_LOGIN_AUTH_MODE=forwardauth`). Set to any truthy value such as `"true"`. Prefer `TA_LOGIN_AUTH_MODE` for new deployments.
+</ParamField>
+
+<ParamField body="TA_AUTH_PROXY_USERNAME_HEADER" type="string" default="HTTP_REMOTE_USER">
+  The Django-format name of the HTTP header that contains the authenticated username. Django converts HTTP headers by uppercasing, replacing hyphens with underscores, and prepending `HTTP_`.
+
+  | Actual header name | Django header variable |
+  |--------------------|----------------------|
+  | `Remote-User` | `HTTP_REMOTE_USER` |
+  | `X-Authentik-Username` | `HTTP_X_AUTHENTIK_USERNAME` |
+  | `X-Forwarded-User` | `HTTP_X_FORWARDED_USER` |
+</ParamField>
+
+<ParamField body="TA_AUTH_PROXY_LOGOUT_URL" type="string">
+  URL to redirect the user to after clicking **Logout** in Tube Archivist. Set this to your authentication provider's logout endpoint so the upstream session is also terminated.
+
+  ```text Example
+  https://auth.example.com/outpost.goauthentik.io/sign_out
+  ```
+</ParamField>
+
+---
+
+## Proxy configuration examples
+
+### Nginx with Authelia
+
+```nginx nginx.conf
+server {
+    listen 443 ssl;
+    server_name tubearchivist.example.com;
+
+    # Forward auth check
+    location /authelia {
+        internal;
+        proxy_pass http://authelia:9091/api/verify;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URL $scheme://$http_host$request_uri;
+    }
+
+    location / {
+        # Require auth
+        auth_request /authelia;
+        auth_request_set $user $upstream_http_remote_user;
+
+        # Pass the authenticated username to Tube Archivist
+        proxy_set_header Remote-User $user;
+
+        # Strip the header from client requests
+        proxy_set_header X-Original-URL "";
+
+        proxy_pass http://tubearchivist:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+```yaml docker-compose.yml (Tube Archivist)
+environment:
+  TA_LOGIN_AUTH_MODE: forwardauth
+  TA_AUTH_PROXY_USERNAME_HEADER: HTTP_REMOTE_USER
+  TA_AUTH_PROXY_LOGOUT_URL: https://auth.example.com/logout
+```
+
+### Traefik with Authentik
+
+```yaml traefik-labels.yml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.tubearchivist.rule=Host(`tubearchivist.example.com`)"
+  - "traefik.http.routers.tubearchivist.middlewares=authentik@docker"
+
+  # Authentik forward auth middleware
+  - "traefik.http.middlewares.authentik.forwardauth.address=http://authentik:9000/outpost.goauthentik.io/auth/traefik"
+  - "traefik.http.middlewares.authentik.forwardauth.trustForwardHeader=true"
+  - "traefik.http.middlewares.authentik.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups"
+```
+
+```yaml docker-compose.yml (Tube Archivist)
+environment:
+  TA_LOGIN_AUTH_MODE: forwardauth
+  TA_AUTH_PROXY_USERNAME_HEADER: HTTP_X_AUTHENTIK_USERNAME
+  TA_AUTH_PROXY_LOGOUT_URL: https://authentik.example.com/outpost.goauthentik.io/sign_out
+```
+
+### Nginx simple header pass-through
+
+For setups where Nginx itself handles basic auth or another mechanism injects the user:
+
+```nginx nginx.conf
+location / {
+    # Set the header to the authenticated user
+    proxy_set_header Remote-User $remote_user;
+
+    proxy_pass http://tubearchivist:8000;
+    proxy_set_header Host $host;
+}
+```
+
+---
+
+## User account lifecycle
+
+When a request arrives with a valid username header:
+
+1. Tube Archivist looks up a local account with the matching username.
+2. If no account exists, one is created automatically with no password set.
+3. The user is logged in for the duration of the session.
+
+<Note>
+  Forward auth users do not have a local password. If you disable forward authentication later, these accounts cannot log in unless a password is manually set via the admin panel.
+</Note>
+
+---
+
+## Security considerations
+
+<Warning>
+  **Restrict direct access to the Tube Archivist port.** Anyone who can send a request directly to Tube Archivist (bypassing the reverse proxy) can log in as any user by setting the username header. Use firewall rules or Docker network isolation to ensure only the reverse proxy can reach the application.
+</Warning>
+
+- Bind Tube Archivist to `127.0.0.1` or a private Docker network, not `0.0.0.0`.
+- Never expose port `8000` (or your custom `TA_PORT`) to untrusted networks when forward auth is enabled.
+- Use HTTPS between the client and the reverse proxy.
+- Configure the reverse proxy to **strip** the username header from incoming client requests before adding its own, so clients cannot self-inject a username.
+
+```nginx Strip client-supplied header before injecting authenticated value
+location / {
+    # Remove any client-supplied Remote-User header
+    proxy_set_header Remote-User "";
+
+    # Inject the header from the auth backend result
+    auth_request_set $user $upstream_http_remote_user;
+    proxy_set_header Remote-User $user;
+
+    proxy_pass http://tubearchivist:8000;
+}
+```

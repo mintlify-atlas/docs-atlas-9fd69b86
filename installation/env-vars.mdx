@@ -1,0 +1,165 @@
+---
+title: "Environment variables"
+description: "All environment variables for configuring Tube Archivist and its dependent services."
+---
+
+Set these variables in the `environment` block of your `docker-compose.yml`. Required variables must be present for the application to start.
+
+## Tube Archivist
+
+### Required
+
+<ParamField env="TA_HOST" required>
+  The full URL where Tube Archivist is reachable, including protocol and port. Used to set `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` in Django.
+
+  Example: `http://tubearchivist.local:8000`
+</ParamField>
+
+<ParamField env="TA_USERNAME" required>
+  The username for the initial admin account created on first run.
+</ParamField>
+
+<ParamField env="TA_PASSWORD" required>
+  The password for the initial admin account. Also used to derive the Django `SECRET_KEY`.
+
+  Supports the `_FILE` suffix — set `TA_PASSWORD_FILE` to a path containing the password instead of passing the value directly.
+</ParamField>
+
+<ParamField env="ELASTIC_PASSWORD" required>
+  The password for the Elasticsearch `elastic` user. Must match the `ELASTIC_PASSWORD` set on the `archivist-es` container.
+
+  Supports the `_FILE` suffix — set `ELASTIC_PASSWORD_FILE` to a path containing the password instead of passing the value directly.
+</ParamField>
+
+<ParamField env="REDIS_CON" required>
+  Connection string for Redis.
+
+  Example: `redis://archivist-redis:6379`
+</ParamField>
+
+<ParamField env="TZ" required>
+  IANA timezone name used by the task scheduler.
+
+  Example: `America/New_York`
+</ParamField>
+
+### Optional — networking
+
+<ParamField env="TA_PORT">
+  Overrides the Nginx listen port inside the container. Useful when you want to map a non-standard port without changing the `ports` mapping in Compose.
+</ParamField>
+
+<ParamField env="TA_BACKEND_PORT">
+  Overrides the internal Django/Gunicorn port that Nginx proxies to. Useful in advanced multi-process setups.
+</ParamField>
+
+<ParamField env="ES_URL">
+  Full URL for the Elasticsearch service, including protocol and port.
+
+  Default: `http://archivist-es:9200`
+</ParamField>
+
+<ParamField env="ES_DISABLE_VERIFY_SSL">
+  Set to any truthy value to disable SSL certificate verification when connecting to Elasticsearch. Useful with self-signed certificates.
+</ParamField>
+
+<ParamField env="ES_SNAPSHOT_DIR">
+  Custom filesystem path for Elasticsearch snapshots on master/data nodes.
+</ParamField>
+
+<ParamField env="ELASTIC_USER">
+  Overrides the Elasticsearch username. Defaults to `elastic`.
+</ParamField>
+
+### Optional — file ownership
+
+<ParamField env="HOST_UID">
+  UID of the user on the host machine that should own the downloaded media files. Set this to avoid permission issues when accessing files outside the container.
+
+  Example: `1000`
+</ParamField>
+
+<ParamField env="HOST_GID">
+  GID of the group on the host machine that should own the downloaded media files.
+
+  Example: `1000`
+</ParamField>
+
+### Optional — authentication
+
+<ParamField env="TA_ENABLE_AUTH_PROXY">
+  Set to a truthy value to enable forward authentication via a reverse proxy. When enabled, Tube Archivist reads the username from an HTTP header set by the proxy.
+
+  See the [forward auth configuration guide](/configuration/forward-auth) for full setup instructions.
+</ParamField>
+
+<ParamField env="TA_AUTH_PROXY_USERNAME_HEADER">
+  The HTTP header name (in Django's `HTTP_*` format) that contains the authenticated username forwarded by the proxy.
+
+  Default: `HTTP_REMOTE_USER`
+</ParamField>
+
+<ParamField env="TA_AUTH_PROXY_LOGOUT_URL">
+  URL to redirect the user to when they log out, typically the logout endpoint of your reverse proxy or SSO provider.
+</ParamField>
+
+<ParamField env="TA_LDAP">
+  Set to a truthy value to enable LDAP authentication. When set in `single` auth mode, LDAP replaces the local password backend entirely.
+
+  See the [LDAP configuration guide](/configuration/ldap) for full setup instructions.
+</ParamField>
+
+<ParamField env="TA_LOGIN_AUTH_MODE">
+  Controls which authentication backends are active and in what order. Defaults to `single`.
+
+  | Value | Description |
+  |-------|-------------|
+  | `single` | Use a single backend selected automatically: local password by default, or LDAP if `TA_LDAP` is set, or forward auth if `TA_ENABLE_AUTH_PROXY` is set |
+  | `local` | Use the local password database only, regardless of other settings |
+  | `ldap` | Use LDAP only |
+  | `forwardauth` | Use reverse proxy headers only |
+  | `ldap_local` | Try LDAP first, fall back to local password database |
+</ParamField>
+
+<ParamField env="DISABLE_STATIC_AUTH">
+  Removes authentication from media file URLs. Required for clients that cannot handle authenticated media requests, such as Google Cast devices.
+
+  See the [DISABLE\_STATIC\_AUTH section](/installation/env-vars#disable_static_auth) for security considerations.
+</ParamField>
+
+### Optional — behaviour
+
+<ParamField env="TA_AUTO_UPDATE_YTDLP">
+  Set to a truthy value to automatically install the latest `yt-dlp` version each time the container starts.
+</ParamField>
+
+<ParamField env="DJANGO_DEBUG">
+  Set to a truthy value to enable Django debug mode. Returns detailed error pages with stack traces. **Do not enable in production.**
+</ParamField>
+
+## Elasticsearch service
+
+These variables are set on the `archivist-es` container, not on `tubearchivist`.
+
+<ParamField env="ELASTIC_PASSWORD" required>
+  Password for the `elastic` superuser. Must match the `ELASTIC_PASSWORD` set on the `tubearchivist` container.
+</ParamField>
+
+<ParamField env="http.port">
+  Changes the port that Elasticsearch listens on inside the container. If you change this, update `ES_URL` on the `tubearchivist` container accordingly.
+</ParamField>
+
+## Secret files (`_FILE` suffix)
+
+`TA_PASSWORD` and `ELASTIC_PASSWORD` both support a `_FILE` variant. Instead of setting the value directly, set the variable to a path and Tube Archivist will read the secret from that file at startup. This follows the same convention used by the official Elasticsearch Docker image.
+
+```yaml
+environment:
+  - TA_PASSWORD_FILE=/run/secrets/ta_password
+  - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+secrets:
+  ta_password:
+    file: ./secrets/ta_password.txt
+  elastic_password:
+    file: ./secrets/elastic_password.txt
+```

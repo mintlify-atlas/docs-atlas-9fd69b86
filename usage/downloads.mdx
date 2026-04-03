@@ -1,0 +1,153 @@
+---
+title: "Downloads"
+description: "Manage the download queue — add videos, channels, and playlists, start downloads, and handle ignored items."
+---
+
+The Downloads page is where you control what gets downloaded. It shows the current queue, lets you add new items, trigger rescans, and manage items that you want to skip.
+
+## The download queue
+
+Every item in the download queue has one of these statuses:
+
+| Status | Meaning |
+|---|---|
+| **pending** | Waiting to be downloaded on the next run |
+| **downloading** | Currently being processed by yt-dlp |
+| **ignore** | Skipped — will not be downloaded unless explicitly moved back to pending |
+
+The queue is sorted so that priority items appear first, followed by pending items in the order they were added.
+
+<Note>
+  The download queue is stored in Elasticsearch under the `ta_download` index. Items already in your archive are never re-added to the queue unless you use the **Re-Download** option.
+</Note>
+
+## Adding items to the queue
+
+Click the **+** (add) icon to expand the add form. Paste one or more identifiers into the text area — one per line or space-separated.
+
+**Accepted input formats:**
+
+- Single video URL: `https://www.youtube.com/watch?v=xxxxxx`
+- Video ID: `xxxxxx`
+- Channel URL: `https://www.youtube.com/channel/UCxxxxxx`
+- Channel handle: `https://www.youtube.com/@ChannelName`
+- Playlist URL: `https://www.youtube.com/playlist?list=PLxxxxxx`
+- Playlist ID: `PLxxxxxx`
+
+When you submit a channel or playlist URL, Tube Archivist adds all videos from that source to the queue (up to the configured size limit).
+
+### Add options
+
+Three toggles are available before submitting:
+
+| Option | Description |
+|---|---|
+| **Fast add** | Skips fetching full metadata for each video. Items are added quickly but with minimal information; metadata is filled in at download time. |
+| **Re-Download** | Forces videos already in your archive to be re-added and re-downloaded. Use this to update an existing download with a different format. |
+| **Auto Download** | Starts the download process automatically as soon as items are added to the queue, without needing to click **Start download**. |
+
+## Rescan subscriptions
+
+Click the **Rescan subscriptions** icon (the circular arrow) to check all subscribed channels and playlists for new videos. Any video that is not already in your archive or the ignore list is added to the download queue as pending.
+
+The rescan respects per-channel size limits (configured under **Per-channel settings**) and global subscription size settings from **Settings > Application**.
+
+<Tip>
+  You can automate rescans on a schedule from **Settings > Scheduling** so new uploads are queued without manual intervention.
+</Tip>
+
+## Starting a download
+
+Click the **Start download** icon (the downward arrow) to begin processing all pending items in the queue. Tube Archivist uses yt-dlp to download each video in order. Progress is visible as a notification while the task runs.
+
+<Note>
+  Only one download task runs at a time. If a download is already in progress, clicking the button again has no effect until the current task finishes.
+</Note>
+
+## Download format
+
+The video format used during download is determined by the yt-dlp format string configured in **Settings > Application > Download format**. A format string controls the video codec, resolution, and container.
+
+**Example format strings:**
+
+```text
+bestvideo[vcodec*=avc1]+bestaudio[acodec*=mp4a]/mp4
+```
+
+```text
+bestvideo[height<=1080]+bestaudio/best
+```
+
+Per-channel format overrides (set on the channel detail page) take precedence over the global setting for videos from that channel.
+
+<Warning>
+  Tube Archivist downloads the best available quality by default. Set your preferred format before downloading to avoid re-downloading at a different quality later.
+</Warning>
+
+## Ignoring videos
+
+To skip a video without downloading it, click the **Ignore** button on any queue item. The item moves to the ignored list and will not be re-added to the queue during future rescans.
+
+### Viewing ignored items
+
+Toggle **Show only ignored videos** to switch between the pending queue and the ignored list.
+
+### Moving items back to pending
+
+With the ignored list visible, click **Add to queue** on any item to move it back to the pending queue. You can also use the bulk action described below.
+
+## Advanced queue actions
+
+Click **Show Advanced** to reveal search, filter, and bulk action controls.
+
+### Search and filter
+
+- **Type filter** — Show only videos, streams, or shorts
+- **Channel filter** — Narrow the queue to a specific channel (appears when the queue contains items from more than one channel)
+- **Error filter** — Show items with download errors or items without errors
+- **Search** — Filter by title prefix
+
+Filters apply to both the displayed list and to bulk actions.
+
+### Bulk actions
+
+Bulk actions apply to all items matching the current status and filter combination:
+
+| Action | Available when | Effect |
+|---|---|---|
+| **Ignore** | Viewing pending | Moves all matching pending items to ignore |
+| **Download Now** | Viewing pending | Sets all matching items to priority and immediately starts a download task |
+| **Clear Errors** | Viewing pending | Removes error messages from all matching items |
+| **Add to Queue** | Viewing ignored | Moves all matching ignored items back to pending |
+| **Forget** | Either | Permanently removes all matching items from the queue index |
+
+<Warning>
+  **Forget** permanently deletes items from the download queue index. It does not delete downloaded media files. Items removed this way will be re-added on the next rescan if they are still available on YouTube and not yet in your archive.
+</Warning>
+
+## Download aggregation stats
+
+The channel aggregation panel appears below the queue controls when items from multiple channels are in the queue. It shows how many items each channel has in the queue, ordered by count. You can click a channel name to filter the queue to that channel's items.
+
+## Filtering the queue by channel
+
+Append `?channel=<channel_id>` to the Downloads page URL to pre-filter the queue to a specific channel. The page title updates to reflect the active channel filter.
+
+```text
+/downloads?channel=UCxxxxxxxxxxxxxxxxxxxxxx
+```
+
+You can also combine filters:
+
+```text
+/downloads?channel=UCxxxxxxxxxxxxxxxxxxxxxx&vid-type=shorts
+```
+
+Supported URL parameters:
+
+| Parameter | Values | Description |
+|---|---|---|
+| `channel` | channel ID | Filter by channel |
+| `vid-type` | `videos`, `streams`, `shorts` | Filter by content type |
+| `error` | `true`, `false` | Filter by error state |
+| `ignored` | `true`, `false` | Switch between pending and ignored views |

@@ -1,0 +1,114 @@
+---
+title: "Channels"
+description: "Subscribe to YouTube channels, browse your collection, and configure per-channel download settings."
+---
+
+The Channels page is your central view of every YouTube channel that Tube Archivist knows about — whether you are subscribed to it or not. Use it to add new subscriptions, adjust per-channel settings, or remove channels from your archive entirely.
+
+## Browsing channels
+
+Navigate to **Channels** in the sidebar to see all indexed channels. Each card shows the channel thumbnail, name, and subscriber count.
+
+### View styles
+
+Use the grid and list icons in the top-right toolbar to switch between grid view and list view. Your preference is saved to your user profile.
+
+### Filtering
+
+Click the filter icon to reveal a subscription state filter:
+
+- **All subscribe state** — shows every channel in the index (default)
+- **Subscribed only** — shows only channels you are currently subscribed to
+- **Unsubscribed only** — shows channels that are indexed but not subscribed
+
+<Note>
+  Only admin users can add or remove channel subscriptions. Read-only users can browse and filter channels but cannot make changes.
+</Note>
+
+## Subscribing to a channel
+
+<Steps>
+  <Step title="Open the subscribe form">
+    Click the **+** (add) icon in the top-right area of the Channels page. A text area appears.
+  </Step>
+  <Step title="Enter channel identifiers">
+    Paste one or more of the following, one per line:
+
+    - **Channel URL** — e.g. `https://www.youtube.com/channel/UCxxxxxx`
+    - **Channel handle** — e.g. `https://www.youtube.com/@ChannelName`
+    - **Channel ID** — e.g. `UCxxxxxx`
+    - **Video URL or ID from the channel** — Tube Archivist extracts the channel from the video
+
+    You can paste multiple channels at once; separate them with newlines or spaces.
+  </Step>
+  <Step title="Click Subscribe">
+    Click the **Subscribe** button. Tube Archivist starts an async task to fetch channel metadata, download channel art, and add the channel to the index. A notification appears while the task runs.
+  </Step>
+</Steps>
+
+<Tip>
+  Subscribing to a channel does not immediately download any videos. Go to the **Downloads** page and click **Rescan subscriptions** to queue the channel's latest videos for download.
+</Tip>
+
+## Channel detail page
+
+Click any channel card to open the channel detail page. It contains three tabs.
+
+### Videos tab
+
+Lists all downloaded videos from this channel in reverse-chronological order. The same grid/list view controls and watch-state filters available on the home page are available here.
+
+### About tab
+
+Displays the full channel description, tags, subscriber count, and the last time Tube Archivist refreshed the channel's metadata.
+
+### Playlists tab
+
+Lists all playlists from this channel that have been indexed. A playlist appears here when at least one of its videos has been downloaded, or when you have enabled **Index playlists** in the per-channel settings.
+
+## Per-channel settings
+
+On the channel detail page, open the channel settings panel to configure overrides that apply only to this channel. These settings override the global values set in **Settings > Application**.
+
+| Setting | Description |
+|---|---|
+| **Download format** | yt-dlp format string for this channel, e.g. `bestvideo[height<=1080]+bestaudio/best` |
+| **Auto delete watched** | Number of days after which watched videos are automatically deleted. Set to `0` to disable. |
+| **Index playlists** | When enabled, all playlists belonging to this channel are indexed automatically |
+| **Integrate SponsorBlock** | Enable or disable SponsorBlock segment skipping for this channel |
+| **Subscriptions channel size** | Maximum number of regular videos to add to the queue per rescan |
+| **Subscriptions live size** | Maximum number of live stream recordings to queue per rescan |
+| **Subscriptions shorts size** | Maximum number of YouTube Shorts to queue per rescan |
+
+<Note>
+  Setting any override value to blank resets it to the global default. Channel-level overrides only take effect on the next rescan or download.
+</Note>
+
+## Unsubscribing from a channel
+
+Unsubscribing marks the channel as not subscribed. The channel and all its downloaded videos remain in your archive — new videos from this channel will no longer be added to the download queue during a rescan.
+
+To unsubscribe, open the channel detail page and toggle the **Subscribed** switch to off, or use the unsubscribe button on the channel card.
+
+## Deleting a channel
+
+<Warning>
+  Deleting a channel is permanent. It removes the channel record, all downloaded media files, all indexed videos, comments, subtitles, and all playlist metadata associated with this channel from both the filesystem and Elasticsearch. This cannot be undone.
+</Warning>
+
+To delete a channel, open the channel detail page and click **Delete channel**. Confirm the action when prompted.
+
+**What gets deleted:**
+
+- All video media files on disk
+- Video, comment, and subtitle records in Elasticsearch
+- All playlist metadata belonging to this channel
+- The channel record itself
+
+Downloaded videos that belong to playlists shared with other channels are not affected.
+
+## Refreshing channel metadata
+
+Tube Archivist periodically refreshes channel metadata (name, description, thumbnail, subscriber count, tags) on a configurable schedule. To trigger an immediate refresh, use **Settings > Actions > Rescan** or the API.
+
+When a channel's metadata changes, Tube Archivist syncs the updated channel information to all videos belonging to that channel in Elasticsearch.

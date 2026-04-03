@@ -1,0 +1,129 @@
+---
+title: "Playlists"
+description: "Browse YouTube playlists indexed from your downloads, subscribe to playlists, and create your own custom playlists."
+---
+
+Tube Archivist supports two types of playlists: **YouTube playlists** that are automatically indexed when you download videos, and **custom playlists** that you create yourself inside Tube Archivist.
+
+## YouTube playlists
+
+YouTube playlists are indexed automatically. When you download a video that belongs to a YouTube playlist, Tube Archivist fetches the playlist metadata and adds it to the index. You do not need to do anything manually — the playlist appears on the Playlists page as soon as a video from it is downloaded.
+
+Each YouTube playlist record stores:
+
+- Playlist name and description
+- The owning channel
+- An ordered list of all entries in the playlist, including which ones you have downloaded
+- A thumbnail (taken from the first downloaded video in the playlist)
+
+<Note>
+  If a video belongs to multiple playlists, it appears in all of them. Playlist membership is stored as metadata on the video itself.
+</Note>
+
+### Subscribing to a playlist
+
+Subscribing to a YouTube playlist means Tube Archivist will check for new videos in that playlist during each rescan, just as it does for channel subscriptions.
+
+<Steps>
+  <Step title="Open the add form">
+    Click the **+** (add) icon on the Playlists page.
+  </Step>
+  <Step title="Enter playlist IDs or URLs">
+    Paste one or more YouTube playlist URLs or IDs into the **Subscribe to playlists** text area:
+
+    ```text
+    https://www.youtube.com/playlist?list=PLxxxxxx
+    PLxxxxxx
+    ```
+
+    You can enter multiple playlists, one per line.
+  </Step>
+  <Step title="Click Subscribe">
+    Tube Archivist starts a background task to index the playlist and fetch its metadata. A notification shows progress.
+  </Step>
+</Steps>
+
+### Unsubscribing from a playlist
+
+Open the playlist detail page and toggle the **Subscribed** switch to off, or use the unsubscribe button on the playlist card. The playlist and its metadata remain in your index — new videos will no longer be queued automatically.
+
+### Deleting a playlist
+
+On the playlist detail page, click **Delete playlist**. You can choose to delete only the playlist metadata (leaving downloaded videos untouched) or delete the playlist together with all its downloaded video files.
+
+<Warning>
+  Deleting a playlist with its videos permanently removes the media files from disk and from the Elasticsearch index. This cannot be undone.
+</Warning>
+
+## Custom playlists
+
+Custom playlists are playlists you create entirely within Tube Archivist. They are not tied to any YouTube playlist ID and can contain any downloaded videos from your archive.
+
+### Creating a custom playlist
+
+<Steps>
+  <Step title="Open the add form">
+    Click the **+** (add) icon on the Playlists page.
+  </Step>
+  <Step title="Enter a name">
+    In the **Or create custom playlist** section, type a name for your playlist.
+  </Step>
+  <Step title="Click Create">
+    The playlist is created immediately and appears on the Playlists page.
+  </Step>
+</Steps>
+
+### Adding videos to a custom playlist
+
+Open the custom playlist detail page and use the add video control to search for and add videos from your archive. You can also add a video to a custom playlist directly from the video detail page.
+
+### Reordering and removing videos
+
+On the custom playlist detail page, each video entry has controls to move it:
+
+| Action | Effect |
+|---|---|
+| **Up** | Move the video one position earlier in the playlist |
+| **Down** | Move the video one position later in the playlist |
+| **Top** | Move the video to the first position |
+| **Bottom** | Move the video to the last position |
+| **Remove** | Remove the video from the playlist (the video itself is not deleted) |
+
+<Note>
+  When **Hide watched** is enabled in your user settings, moving a video up or down skips over already-watched entries so the video lands in a position next to an unwatched video.
+</Note>
+
+## Browsing the Playlists page
+
+The Playlists page shows all indexed playlists — both YouTube playlists and custom playlists. Each card displays the playlist thumbnail, name, owning channel (for YouTube playlists), and entry count.
+
+### View styles
+
+Use the grid and list icons in the top-right toolbar to switch between grid view and list view.
+
+### Filtering by subscription state
+
+Click the filter icon to show only subscribed playlists or only unsubscribed playlists.
+
+## Playlist detail page
+
+Click any playlist to open its detail page. The page lists all videos in the playlist in their defined order.
+
+- Downloaded videos are shown as playable cards.
+- Entries that have not been downloaded yet are shown in a dimmed state.
+- The **Play all** button starts playback from the first downloaded video and uses the playlist order for navigation.
+
+### Sort order
+
+For YouTube playlists you can set the sort order — **top** (original YouTube order) or **bottom** (reversed). This controls the order in which videos are fetched from YouTube during updates and how they are displayed on the playlist detail page.
+
+## Differences between YouTube and custom playlists
+
+| Feature | YouTube playlist | Custom playlist |
+|---|---|---|
+| Source | Indexed from YouTube | Created in Tube Archivist |
+| Auto-updates | Yes, when subscribed | No |
+| Channel association | Yes | No |
+| Can reorder videos | No (follows YouTube order) | Yes |
+| Can be subscribed | Yes | No |
+| Thumbnail | From playlist on YouTube | From first downloaded video |

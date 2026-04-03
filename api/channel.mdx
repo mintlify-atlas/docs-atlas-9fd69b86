@@ -1,0 +1,525 @@
+---
+title: 'Channel'
+description: 'Endpoints for listing, subscribing to, and managing YouTube channels.'
+---
+
+## List channels
+
+`GET /api/channel/`
+
+Returns a paginated list of all indexed channels, sorted alphabetically by name.
+
+<ParamField query="filter" type="string">
+  Filter by subscription state. One of `subscribed` or `unsubscribed`.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Page number (zero-indexed).
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/channel/?filter=subscribed \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/channel/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"filter": "subscribed"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/?filter=subscribed",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "channel_id": "UCxxxxxx",
+      "channel_name": "Example Channel",
+      "channel_active": true,
+      "channel_subscribed": true,
+      "channel_subs": 1500000,
+      "channel_last_refresh": "2024-01-16",
+      "channel_banner_url": "/media/channel/banner.jpg",
+      "channel_thumb_url": "/media/channel/thumb.jpg",
+      "channel_tvart_url": "/media/channel/tvart.jpg",
+      "channel_description": "Channel description.",
+      "channel_tags": ["music", "pop"],
+      "channel_tabs": ["videos", "shorts"],
+      "channel_overwrites": {
+        "autodelete_days": 90,
+        "index_playlists": false
+      }
+    }
+  ],
+  "paginate": {
+    "page_size": 32,
+    "page_from": 0,
+    "prev_pages": null,
+    "next_pages": null,
+    "current_page": 0
+  }
+}
+```
+
+---
+
+## Subscribe or unsubscribe (bulk)
+
+`POST /api/channel/`
+
+Subscribe or unsubscribe from a list of channels. Requires admin privileges.
+
+<ParamField body="data" type="array" required>
+  Array of channel subscription objects.
+
+  <Expandable title="data item fields">
+    <ParamField body="channel_id" type="string" required>
+      YouTube channel ID.
+    </ParamField>
+    <ParamField body="channel_subscribed" type="boolean" required>
+      Set to `true` to subscribe, `false` to unsubscribe.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/channel/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {"channel_id": "UCxxxxxx", "channel_subscribed": true},
+      {"channel_id": "UCyyyyyy", "channel_subscribed": false}
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/channel/",
+    headers={"Authorization": "Token <your-token>"},
+    json={
+        "data": [
+            {"channel_id": "UCxxxxxx", "channel_subscribed": True},
+            {"channel_id": "UCyyyyyy", "channel_subscribed": False},
+        ]
+    },
+)
+print(response.status_code)
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/channel/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    data: [
+      { channel_id: "UCxxxxxx", channel_subscribed: true },
+      { channel_id: "UCyyyyyy", channel_subscribed: false },
+    ],
+  }),
+});
+```
+
+</CodeGroup>
+
+Subscriptions are queued as an async task. Unsubscriptions are applied immediately.
+
+---
+
+## Get a channel
+
+`GET /api/channel/<channel_id>/`
+
+Returns metadata for a single channel.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/channel/UCxxxxxx/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/channel/UCxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/UCxxxxxx/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the channel object, or `404` if not found.
+
+### Response fields
+
+<ResponseField name="channel_id" type="string">
+  YouTube channel ID.
+</ResponseField>
+
+<ResponseField name="channel_name" type="string">
+  Channel display name.
+</ResponseField>
+
+<ResponseField name="channel_active" type="boolean">
+  Whether the channel is currently active on YouTube.
+</ResponseField>
+
+<ResponseField name="channel_subscribed" type="boolean">
+  Whether you are subscribed to this channel in Tube Archivist.
+</ResponseField>
+
+<ResponseField name="channel_subs" type="integer">
+  YouTube subscriber count.
+</ResponseField>
+
+<ResponseField name="channel_last_refresh" type="string">
+  Timestamp of the last metadata refresh.
+</ResponseField>
+
+<ResponseField name="channel_banner_url" type="string">
+  Path to the channel banner image.
+</ResponseField>
+
+<ResponseField name="channel_thumb_url" type="string">
+  Path to the channel thumbnail.
+</ResponseField>
+
+<ResponseField name="channel_tvart_url" type="string">
+  Path to the channel TV art image.
+</ResponseField>
+
+<ResponseField name="channel_description" type="string">
+  Channel description text.
+</ResponseField>
+
+<ResponseField name="channel_tags" type="array">
+  List of tag strings.
+</ResponseField>
+
+<ResponseField name="channel_tabs" type="array">
+  Content tabs available for this channel (e.g., `videos`, `shorts`, `streams`).
+</ResponseField>
+
+<ResponseField name="channel_overwrites" type="object">
+  Per-channel setting overrides. All fields are optional.
+
+  <Expandable title="channel_overwrites fields">
+    <ResponseField name="download_format" type="string">Custom yt-dlp format string.</ResponseField>
+    <ResponseField name="autodelete_days" type="integer">Auto-delete videos after this many days.</ResponseField>
+    <ResponseField name="index_playlists" type="boolean">Whether to index playlists for this channel.</ResponseField>
+    <ResponseField name="integrate_sponsorblock" type="boolean">Whether to fetch SponsorBlock segments.</ResponseField>
+    <ResponseField name="subscriptions_channel_size" type="integer">Max videos to fetch per subscription scan.</ResponseField>
+    <ResponseField name="subscriptions_live_channel_size" type="integer">Max live streams to fetch per scan.</ResponseField>
+    <ResponseField name="subscriptions_shorts_channel_size" type="integer">Max shorts to fetch per scan.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Update a channel
+
+`POST /api/channel/<channel_id>/`
+
+Update the subscription state or per-channel setting overwrites. Requires admin privileges.
+
+<ParamField body="channel_subscribed" type="boolean">
+  Set the subscription state.
+</ParamField>
+
+<ParamField body="channel_overwrites" type="object">
+  Partial overwrite settings to apply to this channel. All fields are optional.
+
+  <Expandable title="channel_overwrites fields">
+    <ParamField body="download_format" type="string">Custom yt-dlp format string.</ParamField>
+    <ParamField body="autodelete_days" type="integer">Auto-delete after N days.</ParamField>
+    <ParamField body="index_playlists" type="boolean">Index playlists for this channel.</ParamField>
+    <ParamField body="integrate_sponsorblock" type="boolean">Fetch SponsorBlock segments.</ParamField>
+    <ParamField body="subscriptions_channel_size" type="integer">Max videos per subscription scan.</ParamField>
+    <ParamField body="subscriptions_live_channel_size" type="integer">Max live streams per scan.</ParamField>
+    <ParamField body="subscriptions_shorts_channel_size" type="integer">Max shorts per scan.</ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/channel/UCxxxxxx/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_subscribed": true,
+    "channel_overwrites": {"autodelete_days": 90}
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/channel/UCxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+    json={
+        "channel_subscribed": True,
+        "channel_overwrites": {"autodelete_days": 90},
+    },
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/channel/UCxxxxxx/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    channel_subscribed: true,
+    channel_overwrites: { autodelete_days: 90 },
+  }),
+});
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the updated fields, `404` if the channel is not found.
+
+---
+
+## Delete a channel
+
+`DELETE /api/channel/<channel_id>/`
+
+Deletes all media files and metadata for the channel. Requires admin privileges.
+
+<Warning>
+  This permanently deletes all downloaded videos for the channel from disk.
+</Warning>
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE http://your-host:8000/api/channel/UCxxxxxx/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/channel/UCxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/UCxxxxxx/",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content` on success, `404` if not found.
+
+---
+
+## Get channel aggregations
+
+`GET /api/channel/<channel_id>/aggs/`
+
+Returns aggregate statistics for all videos in the channel.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/channel/UCxxxxxx/aggs/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/channel/UCxxxxxx/aggs/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/UCxxxxxx/aggs/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "total_items": { "value": 142 },
+  "total_size": { "value": 85899345920, "value_str": "80.0 GB" },
+  "total_duration": { "value": 183600, "value_str": "51:00:00" }
+}
+```
+
+<ResponseField name="total_items" type="object">
+  Total number of archived videos.
+  <Expandable title="fields">
+    <ResponseField name="value" type="integer">Count.</ResponseField>
+    <ResponseField name="value_str" type="string">Human-readable string.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_size" type="object">
+  Total disk space used.
+  <Expandable title="fields">
+    <ResponseField name="value" type="integer">Size in bytes.</ResponseField>
+    <ResponseField name="value_str" type="string">Human-readable size (e.g., `"80.0 GB"`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_duration" type="object">
+  Total video duration.
+  <Expandable title="fields">
+    <ResponseField name="value" type="integer">Duration in seconds.</ResponseField>
+    <ResponseField name="value_str" type="string">Human-readable duration (e.g., `"51:00:00"`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Get channel navigation
+
+`GET /api/channel/<channel_id>/nav/`
+
+Returns flags indicating which content types are available for this channel.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/channel/UCxxxxxx/nav/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/channel/UCxxxxxx/nav/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/UCxxxxxx/nav/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "has_pending": true,
+  "has_ignored": false,
+  "has_playlists": true,
+  "has_videos": true,
+  "has_streams": false,
+  "has_shorts": true
+}
+```
+
+---
+
+## Search channels
+
+`GET /api/channel/search/`
+
+Looks up a channel in the local index by channel URL, channel ID, or channel name.
+
+<ParamField query="q" type="string" required>
+  Channel URL, channel ID, or search query.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/channel/search/?q=https://www.youtube.com/channel/UCxxxxxx" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/channel/search/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"q": "UCxxxxxx"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/channel/search/?q=UCxxxxxx",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the matching channel object, `400` for malformed queries, or `404` if not found in the local index.

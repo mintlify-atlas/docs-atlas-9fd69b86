@@ -1,0 +1,116 @@
+---
+title: "Search"
+description: "Search your entire archive by title, description, subtitles, comments, and channel name using full-text Elasticsearch search."
+---
+
+The Search page gives you a unified interface to find anything in your archive. Tube Archivist indexes video titles, descriptions, subtitles, comments, and channel names in Elasticsearch, making your entire collection searchable in real time.
+
+## Using the search bar
+
+Navigate to **Search** from the sidebar. The search input is focused automatically when the page loads.
+
+Type your query and results appear as you type — search is debounced by 300 ms so the interface does not fire a request on every keystroke. Press **Enter** to force an immediate search.
+
+Results are grouped into four sections:
+
+- **Video results** — matching videos from your archive
+- **Channel results** — channels whose name matches the query
+- **Playlist results** — playlists whose name matches the query
+- **Fulltext results** — matches found inside video subtitles or transcripts
+
+## What is indexed
+
+Tube Archivist stores the following content in Elasticsearch and makes it available to search:
+
+| Content | Index | Notes |
+|---|---|---|
+| Video title | `ta_video` | Indexed for all downloaded videos |
+| Video description | `ta_video` | Indexed for all downloaded videos |
+| Channel name | `ta_channel` | Indexed when a channel is added |
+| Playlist name | `ta_playlist` | Indexed when a playlist is added |
+| Subtitles / transcripts | `ta_subtitle` | Indexed when subtitle download is enabled in settings |
+| Comments | `ta_comment` | Indexed when comment download is enabled in settings |
+
+<Note>
+  Subtitles and comments are not downloaded by default. Enable them in **Settings > Application** before downloading new videos. Existing videos in your archive will not have subtitles or comments indexed unless you trigger a re-index.
+</Note>
+
+## Search query types
+
+The search interface automatically determines the query type based on your input:
+
+| Query type | Trigger | What is searched |
+|---|---|---|
+| `simple` | Default — plain text query | Videos, channels, playlists, and fulltext (subtitles) simultaneously |
+| `video` | Query prefixed with `v:` | Videos only |
+| `channel` | Query prefixed with `ch:` | Channels only |
+| `playlist` | Query prefixed with `pl:` | Playlists only |
+| `full` | Query prefixed with `ft:` | Fulltext (subtitles) only |
+
+**Examples:**
+
+```text
+linux server setup
+```
+Searches everything — returns video, channel, playlist, and fulltext results.
+
+```text
+v:linux server setup
+```
+Returns video results only.
+
+```text
+ch:Linus
+```
+Returns channel results only.
+
+```text
+ft:how to configure nginx
+```
+Returns fulltext/subtitle results only.
+
+## Deep linking with URL parameters
+
+You can link directly to a search result or pre-populate the search bar using URL query parameters. This is useful for bookmarks, integrations, or linking from external tools.
+
+```text
+/search?query=your+search+term
+```
+
+### Open a video directly from a search link
+
+Append `?videoId=<youtube_id>` to the search page URL to open the embeddable video player for a specific video immediately:
+
+```text
+/search?videoId=dQw4w9WgXcQ
+```
+
+This renders the video in an inline player at the top of the search page without navigating away.
+
+## Search results
+
+### Video results
+
+Video cards display the thumbnail, title, channel name, published date, duration, and watched state. Click a card to open the video page.
+
+### Channel results
+
+Channel results show the channel thumbnail and name. Click a result to open the channel detail page.
+
+### Playlist results
+
+Playlist results show the playlist thumbnail, name, and owning channel. Click a result to open the playlist detail page.
+
+### Fulltext results
+
+Fulltext results show the video title, a snippet of the matching subtitle text, and the approximate timestamp. Click a result to open the video at the relevant position.
+
+## How Elasticsearch powers search
+
+Tube Archivist uses Elasticsearch for all indexing and retrieval. The main query used for simple searches is a `multi_match` query across relevant fields, giving higher relevance weight to title matches over description or subtitle matches.
+
+All content is indexed when it is downloaded. There is no separate indexing step — as soon as a video finishes downloading, its title, description, and any enabled subtitle/comment data are available to search immediately.
+
+<Tip>
+  If search results feel stale after a bulk import or re-index, trigger a manual refresh from **Settings > Actions** to ensure Elasticsearch has fully indexed all new content.
+</Tip>

@@ -1,0 +1,681 @@
+---
+title: 'Video'
+description: 'Endpoints for listing, retrieving, updating, and deleting archived videos.'
+---
+
+## List videos
+
+`GET /api/video/`
+
+Returns a paginated list of archived videos. You can filter, sort, and page through results using query parameters.
+
+<ParamField query="channel" type="string">
+  Filter by channel ID.
+</ParamField>
+
+<ParamField query="playlist" type="string">
+  Filter by playlist ID.
+</ParamField>
+
+<ParamField query="watch" type="string">
+  Filter by watch state. One of `watched`, `unwatched`, or `continue`.
+</ParamField>
+
+<ParamField query="sort" type="string">
+  Sort field. One of `published`, `downloaded`, `views`, `likes`, `duration`, `filesize`.
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sort direction. One of `asc` or `desc`.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by video type. One of `videos`, `streams`, or `shorts`.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Page number (zero-indexed). Defaults to `0`.
+</ParamField>
+
+<ParamField query="height" type="integer">
+  Minimum video height in pixels.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/video/?sort=published&order=desc&page=0 \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+headers = {"Authorization": "Token <your-token>"}
+params = {"sort": "published", "order": "desc", "page": 0}
+
+response = requests.get(
+    "http://your-host:8000/api/video/",
+    headers=headers,
+    params=params,
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/?sort=published&order=desc&page=0",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "youtube_id": "dQw4w9WgXcQ",
+      "title": "Example Video",
+      "published": "2024-01-15",
+      "vid_type": "videos",
+      "active": true,
+      "media_url": "/media/example/video.mp4",
+      "vid_thumb_url": "/media/example/thumb.jpg",
+      "date_downloaded": 1705363200,
+      "media_size": 523456789,
+      "description": "Video description text.",
+      "tags": ["tag1", "tag2"],
+      "category": ["Music"],
+      "comment_count": 120,
+      "vid_last_refresh": "2024-01-16",
+      "playlist": ["PLxxxxxx"],
+      "player": {
+        "watched": false,
+        "duration": 212,
+        "duration_str": "3:32",
+        "progress": 0.0,
+        "position": 0.0
+      },
+      "stats": {
+        "view_count": 1400000000,
+        "like_count": 12000000,
+        "dislike_count": 0,
+        "average_rating": 4.9
+      },
+      "streams": [
+        {
+          "type": "video",
+          "codec": "vp9",
+          "width": 1920,
+          "height": 1080,
+          "bitrate": 3000000,
+          "index": 0
+        }
+      ],
+      "channel": {
+        "channel_id": "UCxxxxxx",
+        "channel_name": "Example Channel",
+        "channel_subs": 1000000,
+        "channel_subscribed": true,
+        "channel_active": true,
+        "channel_last_refresh": "2024-01-16",
+        "channel_tabs": ["videos", "shorts"],
+        "channel_subs": 1000000
+      }
+    }
+  ],
+  "paginate": {
+    "page_size": 32,
+    "page_from": 0,
+    "prev_pages": null,
+    "next_pages": 3,
+    "current_page": 0
+  }
+}
+```
+
+---
+
+## Get a video
+
+`GET /api/video/<video_id>/`
+
+Returns metadata for a single video by its YouTube video ID.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/video/dQw4w9WgXcQ/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with a single video object (same shape as list items) or `404` if not found.
+
+### Response fields
+
+<ResponseField name="youtube_id" type="string">
+  The YouTube video ID.
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Video title.
+</ResponseField>
+
+<ResponseField name="published" type="string">
+  Publication date string.
+</ResponseField>
+
+<ResponseField name="vid_type" type="string">
+  One of `videos`, `streams`, or `shorts`.
+</ResponseField>
+
+<ResponseField name="active" type="boolean">
+  Whether the video is active/available on YouTube.
+</ResponseField>
+
+<ResponseField name="media_url" type="string">
+  Relative URL to the video file on the server.
+</ResponseField>
+
+<ResponseField name="vid_thumb_url" type="string">
+  Relative URL to the video thumbnail.
+</ResponseField>
+
+<ResponseField name="date_downloaded" type="integer">
+  Unix timestamp of when the video was downloaded.
+</ResponseField>
+
+<ResponseField name="media_size" type="integer">
+  File size in bytes.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Video description.
+</ResponseField>
+
+<ResponseField name="tags" type="array">
+  List of tag strings.
+</ResponseField>
+
+<ResponseField name="category" type="array">
+  List of category strings.
+</ResponseField>
+
+<ResponseField name="comment_count" type="integer">
+  Number of indexed comments.
+</ResponseField>
+
+<ResponseField name="vid_last_refresh" type="string">
+  Timestamp of the last metadata refresh.
+</ResponseField>
+
+<ResponseField name="playlist" type="array">
+  List of playlist IDs this video belongs to.
+</ResponseField>
+
+<ResponseField name="player" type="object">
+  Playback state.
+
+  <Expandable title="player fields">
+    <ResponseField name="watched" type="boolean">Whether the video has been marked watched.</ResponseField>
+    <ResponseField name="watched_date" type="integer">Unix timestamp when it was marked watched.</ResponseField>
+    <ResponseField name="duration" type="integer">Duration in seconds.</ResponseField>
+    <ResponseField name="duration_str" type="string">Human-readable duration (e.g., `"3:32"`).</ResponseField>
+    <ResponseField name="progress" type="float">Percentage watched (0.0–1.0).</ResponseField>
+    <ResponseField name="position" type="float">Current playback position in seconds.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="stats" type="object">
+  YouTube engagement statistics.
+
+  <Expandable title="stats fields">
+    <ResponseField name="view_count" type="integer">Total views.</ResponseField>
+    <ResponseField name="like_count" type="integer">Total likes.</ResponseField>
+    <ResponseField name="dislike_count" type="integer">Total dislikes.</ResponseField>
+    <ResponseField name="average_rating" type="float">Average rating.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="streams" type="array">
+  Media streams contained in the file.
+
+  <Expandable title="stream item fields">
+    <ResponseField name="type" type="string">One of `video` or `audio`.</ResponseField>
+    <ResponseField name="codec" type="string">Codec name (e.g., `"vp9"`).</ResponseField>
+    <ResponseField name="width" type="integer">Frame width in pixels (video streams only).</ResponseField>
+    <ResponseField name="height" type="integer">Frame height in pixels (video streams only).</ResponseField>
+    <ResponseField name="bitrate" type="integer">Bitrate in bits per second.</ResponseField>
+    <ResponseField name="index" type="integer">Stream index.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="subtitles" type="array">
+  Available subtitle tracks.
+
+  <Expandable title="subtitle item fields">
+    <ResponseField name="lang" type="string">Language code.</ResponseField>
+    <ResponseField name="name" type="string">Language name.</ResponseField>
+    <ResponseField name="ext" type="string">File extension — `json3` or `vtt`.</ResponseField>
+    <ResponseField name="url" type="string">URL to the subtitle file.</ResponseField>
+    <ResponseField name="media_url" type="string">Relative media path.</ResponseField>
+    <ResponseField name="source" type="string">One of `user` or `auto`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="sponsorblock" type="object">
+  SponsorBlock segment data (if enabled and available).
+
+  <Expandable title="sponsorblock fields">
+    <ResponseField name="is_enabled" type="boolean">Whether SponsorBlock is enabled for this video.</ResponseField>
+    <ResponseField name="last_refresh" type="integer">Unix timestamp of last SponsorBlock refresh.</ResponseField>
+    <ResponseField name="has_unlocked" type="boolean">Whether there are unlocked segments.</ResponseField>
+    <ResponseField name="segments" type="array">List of segment objects with `category`, `segment`, `votes`, `UUID`, `locked`, `actionType`, `videoDuration`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Delete a video
+
+`DELETE /api/video/<video_id>/`
+
+Deletes the video media file and its metadata. Requires admin privileges.
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE http://your-host:8000/api/video/dQw4w9WgXcQ/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+console.log(response.status); // 204
+```
+
+</CodeGroup>
+
+Returns `204 No Content` on success, `404` if the video is not found.
+
+---
+
+## Get video navigation
+
+`GET /api/video/<video_id>/nav/`
+
+Returns playlist navigation (previous and next video) for the given video across all playlists it belongs to.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/video/dQw4w9WgXcQ/nav/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/nav/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/nav/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns an array of nav objects — one per playlist the video appears in:
+
+```json
+[
+  {
+    "playlist_meta": {
+      "current_idx": 3,
+      "playlist_id": "PLxxxxxx",
+      "playlist_name": "My Playlist",
+      "playlist_channel": "Example Channel"
+    },
+    "playlist_previous": {
+      "youtube_id": "aaaaaaaaaaa",
+      "title": "Previous Video",
+      "uploader": "Example Channel",
+      "idx": 2,
+      "downloaded": true,
+      "vid_thumb": "/media/thumb.jpg"
+    },
+    "playlist_next": {
+      "youtube_id": "bbbbbbbbbbb",
+      "title": "Next Video",
+      "uploader": "Example Channel",
+      "idx": 4,
+      "downloaded": true,
+      "vid_thumb": "/media/thumb.jpg"
+    }
+  }
+]
+```
+
+Returns an empty array `[]` if the video is not in any playlist.
+
+---
+
+## Get watch progress
+
+`GET /api/video/<video_id>/progress/`
+
+Returns the current watch progress for the authenticated user. Progress is stored in Redis and is user-specific.
+
+<Note>
+  Progress is written by the player via `POST /api/video/<video_id>/progress/`. This GET endpoint retrieves the stored value from the video document itself.
+</Note>
+
+---
+
+## Update watch progress
+
+`POST /api/video/<video_id>/progress/`
+
+Sets the playback position for the authenticated user. If the position exceeds 90% of the video duration, the video is automatically marked as watched.
+
+<ParamField body="position" type="float" required>
+  Current playback position in seconds. Positions less than or equal to 5 seconds are ignored.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/video/dQw4w9WgXcQ/progress/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"position": 120.5}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/progress/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"position": 120.5},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/progress/",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Token <your-token>",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ position: 120.5 }),
+  }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns the updated player object:
+
+```json
+{
+  "watched": false,
+  "duration": 212,
+  "duration_str": "3:32",
+  "progress": 0.57,
+  "position": 120.5
+}
+```
+
+---
+
+## Delete watch progress
+
+`DELETE /api/video/<video_id>/progress/`
+
+Clears the stored playback position for the authenticated user.
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE http://your-host:8000/api/video/dQw4w9WgXcQ/progress/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/progress/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/progress/",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content`.
+
+---
+
+## Get video comments
+
+`GET /api/video/<video_id>/comment/`
+
+Returns the indexed comments for a video, including nested reply threads.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/video/dQw4w9WgXcQ/comment/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/comment/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/comment/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns an array of comment objects:
+
+```json
+[
+  {
+    "comment_id": "UgxABC123",
+    "comment_text": "This is a comment.",
+    "comment_author": "Some User",
+    "comment_author_id": "UCxxxxxx",
+    "comment_author_thumbnail": "https://...",
+    "comment_author_is_uploader": false,
+    "comment_is_favorited": false,
+    "comment_likecount": 42,
+    "comment_parent": "root",
+    "comment_time_text": "2 years ago",
+    "comment_timestamp": 1640000000,
+    "comment_replies": [
+      {
+        "comment_id": "UgxDEF456",
+        "comment_text": "A reply.",
+        "comment_author": "Another User",
+        "comment_author_id": "UCyyyyyy",
+        "comment_author_thumbnail": "https://...",
+        "comment_author_is_uploader": false,
+        "comment_is_favorited": false,
+        "comment_likecount": 5,
+        "comment_parent": "UgxABC123",
+        "comment_time_text": "1 year ago",
+        "comment_timestamp": 1670000000,
+        "comment_replies": []
+      }
+    ]
+  }
+]
+```
+
+Returns `404` if the video is not found.
+
+---
+
+## Get similar videos
+
+`GET /api/video/<video_id>/similar/`
+
+Returns up to 6 videos that are similar to the given video, based on shared tags and title content.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/video/dQw4w9WgXcQ/similar/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/video/dQw4w9WgXcQ/similar/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/video/dQw4w9WgXcQ/similar/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns an array of video objects (same shape as list items, without pagination).
+
+---
+
+## Mark watched state
+
+`POST /api/watched/`
+
+Marks a video, all videos in a channel, or all videos in a playlist as watched or unwatched.
+
+<ParamField body="id" type="string" required>
+  YouTube ID of the video, channel, or playlist to update.
+</ParamField>
+
+<ParamField body="is_watched" type="boolean" required>
+  Set to `true` to mark as watched, `false` to mark as unwatched.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/watched/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "dQw4w9WgXcQ", "is_watched": true}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/watched/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"id": "dQw4w9WgXcQ", "is_watched": True},
+)
+print(response.status_code)
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/watched/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ id: "dQw4w9WgXcQ", is_watched: true }),
+});
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the echoed request body on success, `400` if `id` or `is_watched` is missing.

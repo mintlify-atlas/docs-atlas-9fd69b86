@@ -1,0 +1,510 @@
+---
+title: 'Playlist'
+description: 'Endpoints for YouTube playlists and user-created custom playlists.'
+---
+
+Tube Archivist supports two playlist types:
+
+- **Regular** — playlists imported from YouTube.
+- **Custom** — user-created playlists for organizing local content.
+
+---
+
+## List playlists
+
+`GET /api/playlist/`
+
+Returns a paginated list of indexed playlists.
+
+<ParamField query="channel" type="string">
+  Filter by channel ID.
+</ParamField>
+
+<ParamField query="subscribed" type="boolean">
+  Filter by subscription state (`true` or `false`).
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by playlist type. One of `regular` or `custom`.
+</ParamField>
+
+<ParamField query="page" type="integer">
+  Page number (zero-indexed).
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/playlist/?subscribed=true&type=regular" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/playlist/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"subscribed": True, "type": "regular"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/playlist/?subscribed=true&type=regular",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+**Response** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "playlist_id": "PLxxxxxx",
+      "playlist_name": "My Playlist",
+      "playlist_channel": "Example Channel",
+      "playlist_channel_id": "UCxxxxxx",
+      "playlist_description": "A description.",
+      "playlist_thumbnail": "/media/playlist/thumb.jpg",
+      "playlist_active": true,
+      "playlist_subscribed": true,
+      "playlist_last_refresh": "2024-01-16",
+      "playlist_type": "regular",
+      "playlist_sort_order": "top",
+      "playlist_entries": [
+        {
+          "youtube_id": "dQw4w9WgXcQ",
+          "title": "Example Video",
+          "uploader": "Example Channel",
+          "idx": 0,
+          "downloaded": true
+        }
+      ]
+    }
+  ],
+  "paginate": {
+    "page_size": 32,
+    "page_from": 0,
+    "prev_pages": null,
+    "next_pages": null,
+    "current_page": 0
+  }
+}
+```
+
+---
+
+## Subscribe to playlists (bulk)
+
+`POST /api/playlist/`
+
+Subscribe to one or more YouTube playlists. Requires admin privileges.
+
+<ParamField body="data" type="array" required>
+  Array of playlist subscription objects.
+
+  <Expandable title="data item fields">
+    <ParamField body="playlist_id" type="string" required>
+      YouTube playlist ID.
+    </ParamField>
+    <ParamField body="playlist_subscribed" type="boolean" required>
+      Must be `true` (this endpoint only subscribes).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/playlist/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": [
+      {"playlist_id": "PLxxxxxx", "playlist_subscribed": true}
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/playlist/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"data": [{"playlist_id": "PLxxxxxx", "playlist_subscribed": True}]},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/playlist/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    data: [{ playlist_id: "PLxxxxxx", playlist_subscribed: true }],
+  }),
+});
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns an async task response:
+
+```json
+{
+  "message": "playlist subscribe task started",
+  "task_id": "c9a1b2d3-..."
+}
+```
+
+---
+
+## Get a playlist
+
+`GET /api/playlist/<playlist_id>/`
+
+Returns metadata and entries for a single playlist.
+
+<CodeGroup>
+
+```bash curl
+curl http://your-host:8000/api/playlist/PLxxxxxx/ \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/playlist/PLxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/playlist/PLxxxxxx/",
+  { headers: { "Authorization": "Token <your-token>" } }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the playlist object or `404` if not found.
+
+### Response fields
+
+<ResponseField name="playlist_id" type="string">
+  YouTube playlist ID (or a UUID-based ID for custom playlists).
+</ResponseField>
+
+<ResponseField name="playlist_name" type="string">
+  Playlist name.
+</ResponseField>
+
+<ResponseField name="playlist_channel" type="string">
+  Channel name that owns this playlist.
+</ResponseField>
+
+<ResponseField name="playlist_channel_id" type="string">
+  Channel ID that owns this playlist.
+</ResponseField>
+
+<ResponseField name="playlist_description" type="string">
+  Playlist description.
+</ResponseField>
+
+<ResponseField name="playlist_thumbnail" type="string">
+  Path to the playlist thumbnail.
+</ResponseField>
+
+<ResponseField name="playlist_active" type="boolean">
+  Whether the playlist is active on YouTube.
+</ResponseField>
+
+<ResponseField name="playlist_subscribed" type="boolean">
+  Whether you are subscribed to this playlist.
+</ResponseField>
+
+<ResponseField name="playlist_last_refresh" type="string">
+  Timestamp of the last metadata refresh.
+</ResponseField>
+
+<ResponseField name="playlist_type" type="string">
+  One of `regular` or `custom`.
+</ResponseField>
+
+<ResponseField name="playlist_sort_order" type="string">
+  Where newly added videos are placed: `top` or `bottom`.
+</ResponseField>
+
+<ResponseField name="playlist_entries" type="array">
+  Videos in this playlist.
+
+  <Expandable title="entry fields">
+    <ResponseField name="youtube_id" type="string">Video ID.</ResponseField>
+    <ResponseField name="title" type="string">Video title.</ResponseField>
+    <ResponseField name="uploader" type="string">Uploader name.</ResponseField>
+    <ResponseField name="idx" type="integer">Position index in the playlist.</ResponseField>
+    <ResponseField name="downloaded" type="boolean">Whether the video is locally downloaded.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Update a playlist
+
+`POST /api/playlist/<playlist_id>/`
+
+Update the subscription state or sort order of a regular (non-custom) YouTube playlist. Requires admin privileges.
+
+<ParamField body="playlist_subscribed" type="boolean">
+  Set to `true` to subscribe, `false` to unsubscribe.
+</ParamField>
+
+<ParamField body="playlist_sort_order" type="string">
+  Where new entries appear. One of `top` or `bottom`.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/playlist/PLxxxxxx/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"playlist_subscribed": true, "playlist_sort_order": "bottom"}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/playlist/PLxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"playlist_subscribed": True, "playlist_sort_order": "bottom"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/playlist/PLxxxxxx/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    playlist_subscribed: true,
+    playlist_sort_order: "bottom",
+  }),
+});
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the updated playlist object, `400` if the playlist is custom, or `404` if not found.
+
+---
+
+## Delete a playlist
+
+`DELETE /api/playlist/<playlist_id>/`
+
+Deletes a playlist. Requires admin privileges.
+
+<ParamField query="delete_videos" type="boolean">
+  If `true`, also deletes all video media files that belong to this playlist. Defaults to `false`.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE "http://your-host:8000/api/playlist/PLxxxxxx/?delete_videos=false" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.delete(
+    "http://your-host:8000/api/playlist/PLxxxxxx/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"delete_videos": False},
+)
+print(response.status_code)  # 204
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/playlist/PLxxxxxx/?delete_videos=false",
+  {
+    method: "DELETE",
+    headers: { "Authorization": "Token <your-token>" },
+  }
+);
+```
+
+</CodeGroup>
+
+Returns `204 No Content`.
+
+---
+
+## List custom playlists
+
+`GET /api/playlist/?type=custom`
+
+Custom playlists are returned via the main playlist list endpoint with the `type=custom` query parameter.
+
+<CodeGroup>
+
+```bash curl
+curl "http://your-host:8000/api/playlist/?type=custom" \
+  -H "Authorization: Token <your-token>"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://your-host:8000/api/playlist/",
+    headers={"Authorization": "Token <your-token>"},
+    params={"type": "custom"},
+)
+print(response.json())
+```
+
+</CodeGroup>
+
+---
+
+## Create a custom playlist
+
+`POST /api/playlist/custom/`
+
+Creates a new empty custom playlist. Requires admin privileges.
+
+<ParamField body="playlist_name" type="string" required>
+  Name for the new custom playlist.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://your-host:8000/api/playlist/custom/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"playlist_name": "My Favourites"}'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://your-host:8000/api/playlist/custom/",
+    headers={"Authorization": "Token <your-token>"},
+    json={"playlist_name": "My Favourites"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("http://your-host:8000/api/playlist/custom/", {
+  method: "POST",
+  headers: {
+    "Authorization": "Token <your-token>",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ playlist_name: "My Favourites" }),
+});
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the newly created playlist object. The playlist ID is auto-generated in the form `TA_playlist_<uuid>`.
+
+---
+
+## Modify a custom playlist
+
+`POST /api/playlist/custom/<playlist_id>/`
+
+Add a video to, remove a video from, or reorder a video within a custom playlist. Requires admin privileges.
+
+<ParamField body="action" type="string" required>
+  The operation to perform. One of:
+  - `create` — add the video to the playlist
+  - `remove` — remove the video from the playlist
+  - `up` — move the video one position up
+  - `down` — move the video one position down
+  - `top` — move the video to the top
+  - `bottom` — move the video to the bottom
+</ParamField>
+
+<ParamField body="video_id" type="string" required>
+  YouTube video ID to act on.
+</ParamField>
+
+<CodeGroup>
+
+```bash curl
+# Add a video
+curl -X POST http://your-host:8000/api/playlist/custom/TA_playlist_abc123/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "create", "video_id": "dQw4w9WgXcQ"}'
+
+# Move a video to the top
+curl -X POST http://your-host:8000/api/playlist/custom/TA_playlist_abc123/ \
+  -H "Authorization: Token <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "top", "video_id": "dQw4w9WgXcQ"}'
+```
+
+```python Python
+import requests
+
+headers = {"Authorization": "Token <your-token>"}
+
+# Add a video
+response = requests.post(
+    "http://your-host:8000/api/playlist/custom/TA_playlist_abc123/",
+    headers=headers,
+    json={"action": "create", "video_id": "dQw4w9WgXcQ"},
+)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "http://your-host:8000/api/playlist/custom/TA_playlist_abc123/",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Token <your-token>",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "create", video_id: "dQw4w9WgXcQ" }),
+  }
+);
+const data = await response.json();
+```
+
+</CodeGroup>
+
+Returns `200 OK` with the updated playlist object, `400` if the playlist is not custom or the video cannot be added, `404` if the playlist is not found.
